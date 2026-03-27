@@ -90,11 +90,12 @@ async def classify_source(state: QAState) -> dict:
 # ========== Node 3: RAG Search ==========
 
 async def rag_search(state: QAState) -> dict:
-    """Semantic search for matching API endpoints / knowledge base docs."""
+    """Semantic search for matching API endpoints + knowledge base documents."""
     intents = state["intents"]
     all_matched = []
     max_confidence = 0.0
 
+    # Search API endpoints
     for intent in intents:
         results = await search_apis(intent)
         for r in results:
@@ -102,11 +103,30 @@ async def rag_search(state: QAState) -> dict:
                 all_matched.append(r)
             max_confidence = max(max_confidence, r.get("confidence", 0))
 
-    logger.info("RAG search complete", matched=len(all_matched), confidence=round(max_confidence, 2))
+    # Search knowledge base documents
+    kb_context = ""
+    try:
+        from app.services.kb_service import KnowledgeBaseService
+        kb_svc = KnowledgeBaseService()
+        kb_results = await kb_svc.search(state["query"], top_k=5)
+        if kb_results:
+            kb_chunks = [f"[{r.get('metadata', {}).get('filename', 'doc')}] {r['content']}" for r in kb_results if r.get("similarity", 0) > 0.3]
+            if kb_chunks:
+                kb_context = "\n\n---\n\n".join(kb_chunks)
+                # If KB has good matches, boost confidence
+                best_sim = max(r.get("similarity", 0) for r in kb_results)
+                if best_sim > 0.5:
+                    max_confidence = max(max_confidence, best_sim)
+                logger.info("KB search found results", chunks=len(kb_chunks), best_similarity=round(best_sim, 2))
+    except Exception as e:
+        logger.warning("KB search failed", error=str(e))
+
+    logger.info("RAG search complete", matched=len(all_matched), confidence=round(max_confidence, 2), has_kb=bool(kb_context))
 
     return {
         "matched_apis": all_matched,
         "rag_confidence": max_confidence,
+        "kb_context": kb_context,
         "processing_steps": state.get("processing_steps", []) + ["rag_searched"],
     }
 
@@ -186,6 +206,11 @@ async def analyze(state: QAState) -> dict:
     data_context = _format_data_with_sources(api_results)
     if calc_results:
         data_context += f"\n\nCalculation results:\n{json.dumps(calc_results, ensure_ascii=False, default=str)}"
+
+    # Add knowledge base context if available
+    kb_context = state.get("kb_context", "")
+    if kb_context:
+        data_context += f"\n\n## Knowledge Base Documents:\n{kb_context}"
 
     prompt = _load_prompt("analysis").replace("{data}", data_context)
 

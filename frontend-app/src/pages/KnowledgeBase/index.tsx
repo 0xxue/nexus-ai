@@ -15,6 +15,8 @@ export default function KnowledgeBasePage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
 
   useEffect(() => {
     listCollections().then((data: any) => setCollections(data?.collections || data || [])).catch(() => {});
@@ -28,24 +30,34 @@ export default function KnowledgeBasePage() {
     if (!newName.trim()) return;
     await createCollection(newName, newDesc);
     setShowCreate(false); setNewName(''); setNewDesc('');
-    listCollections().then(setCollections);
+    listCollections().then((data: any) => setCollections(data?.collections || data || []));
     toast('Collection created', 'success');
   };
 
   const handleDelete = async (id: number) => {
     await deleteCollection(id);
     if (selectedId === id) { setSelectedId(null); setDocs([]); }
-    listCollections().then(setCollections);
+    listCollections().then((data: any) => setCollections(data?.collections || data || []));
     toast('Collection deleted', 'info');
   };
 
   const handleUpload = async (files: FileList) => {
-    if (!selectedId) return;
-    for (const file of Array.from(files)) {
-      await uploadDocument(selectedId, file);
+    if (!selectedId || uploading) return;
+    setUploading(true);
+    const fileArr = Array.from(files);
+    for (let i = 0; i < fileArr.length; i++) {
+      const file = fileArr[i];
+      setUploadStatus(`Uploading ${file.name} (${i + 1}/${fileArr.length})...`);
+      try {
+        await uploadDocument(selectedId, file);
+        toast(`${file.name} uploaded`, 'success');
+      } catch (err: any) {
+        toast(`${file.name} failed: ${err?.response?.data?.error || err?.message || 'Unknown error'}`, 'error');
+      }
     }
-    listDocuments(selectedId).then(setDocs);
-    toast(`${files.length} file(s) uploaded`, 'success');
+    setUploading(false);
+    setUploadStatus('');
+    listDocuments(selectedId).then((data: any) => setDocs(data?.documents || data || []));
   };
 
   return (
@@ -85,6 +97,7 @@ export default function KnowledgeBasePage() {
               <FolderOpen size={16} color="var(--orange)" />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+                {c.description && <div style={{ fontSize: 10, color: 'var(--mid)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.description}</div>}
                 <div className="font-mono" style={{ fontSize: 9, color: 'var(--dim)' }}>{c.doc_count} docs</div>
               </div>
               <button onClick={e => { e.stopPropagation(); handleDelete(c.id); }}
@@ -116,13 +129,24 @@ export default function KnowledgeBasePage() {
                 input.click();
               }}
             >
-              <Upload size={20} color="var(--orange)" style={{ margin: '0 auto 8px' }} />
-              <div className="font-mono" style={{ fontSize: 11, color: 'var(--mid)' }}>
-                Drop files here or click to upload
-              </div>
-              <div className="font-mono" style={{ fontSize: 9, color: 'var(--dim)', marginTop: 4 }}>
-                PDF · DOCX · XLSX · CSV · TXT · MD
-              </div>
+              {uploading ? (
+                <>
+                  <div style={{ width: 20, height: 20, border: '2px solid var(--orange)', borderTop: '2px solid transparent', borderRadius: '50%', margin: '0 auto 8px', animation: 'spin 1s linear infinite' }} />
+                  <div className="font-mono" style={{ fontSize: 11, color: 'var(--orange)' }}>
+                    {uploadStatus || 'Processing...'}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Upload size={20} color="var(--orange)" style={{ margin: '0 auto 8px' }} />
+                  <div className="font-mono" style={{ fontSize: 11, color: 'var(--mid)' }}>
+                    Drop files here or click to upload
+                  </div>
+                  <div className="font-mono" style={{ fontSize: 9, color: 'var(--dim)', marginTop: 4 }}>
+                    PDF · DOCX · XLSX · CSV · TXT · MD
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Document list */}

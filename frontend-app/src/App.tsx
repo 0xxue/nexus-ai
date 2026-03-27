@@ -8,7 +8,7 @@ import LoginPage from './pages/Login';
 import { ToastContainer } from './components/ui/Toast';
 import { BotContainer } from './components/bot/BotContainer';
 import { GeoLines, DustCanvas } from './components/layout/Background';
-import { MessageSquare, Database, BarChart3, Settings } from 'lucide-react';
+import { MessageSquare, Database, BarChart3, Settings, LogOut, User } from 'lucide-react';
 
 /* ══════════════════════════════════════
    NEXUS Sidebar
@@ -102,11 +102,18 @@ function Sidebar() {
 
 function TopStrip() {
   const [time, setTime] = useState(new Date().toLocaleTimeString());
+  const token = localStorage.getItem('token');
+  const isLoggedIn = !!token;
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date().toLocaleTimeString()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    window.location.href = '/login';
+  };
 
   return (
     <div style={{
@@ -135,8 +142,23 @@ function TopStrip() {
         fontSize: 10, letterSpacing: 2, textTransform: 'uppercase',
         color: 'var(--orange)', background: 'rgba(212, 82, 26, 0.05)',
       }}>
-        ● ONLINE
+        ● {isLoggedIn ? 'ONLINE' : 'DEMO'}
       </div>
+      {isLoggedIn ? (
+        <button onClick={handleLogout} title="Logout"
+          style={{ background: 'none', border: '1.5px solid var(--line)', padding: '4px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.2s' }}
+          onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--orange)')}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--line)')}
+        >
+          <LogOut size={12} color="var(--mid)" />
+          <span className="font-mono" style={{ fontSize: 9, color: 'var(--mid)', letterSpacing: 1 }}>LOGOUT</span>
+        </button>
+      ) : (
+        <a href="/login" style={{ textDecoration: 'none', border: '1.5px solid var(--orange)', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <User size={12} color="var(--orange)" />
+          <span className="font-mono" style={{ fontSize: 9, color: 'var(--orange)', letterSpacing: 1 }}>LOGIN</span>
+        </a>
+      )}
     </div>
   );
 }

@@ -25,6 +25,9 @@ class QAState(TypedDict):
     matched_apis: list[dict]            # APIs matched by RAG: [{name, endpoint, confidence}]
     rag_confidence: float               # Highest RAG match confidence (0-1)
 
+    # Knowledge base
+    kb_context: Optional[str]           # Relevant KB chunks concatenated as context
+
     # Data fetching
     api_results: dict[str, Any]         # Raw API responses: {api_name: response_data}
     data_quality: dict[str, float]      # Quality scores: {completeness, accuracy, freshness}

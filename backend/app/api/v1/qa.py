@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from app.schemas.qa import QARequest, QAResponse
 from app.services.auth import get_optional_user
-from app.services.database import get_session, _session_factory
+from app.services.database import get_session
 from app.services.conversation import ConversationService
 from app.core.langgraph.graph import qa_graph
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,6 +49,7 @@ async def ask(request: QARequest, user=Depends(get_optional_user)):
 
     # Save conversation to DB if available
     conv_id = None
+    from app.services.database import _session_factory
     if _session_factory:
         try:
             async with _session_factory() as session:
@@ -103,6 +104,7 @@ async def stream(request: QARequest, user=Depends(get_optional_user)):
 
     # Save user message
     conv_id = None
+    from app.services.database import _session_factory
     if _session_factory:
         try:
             async with _session_factory() as session:
@@ -163,13 +165,19 @@ async def stream(request: QARequest, user=Depends(get_optional_user)):
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
+def _get_sf():
+    from app.services.database import _session_factory
+    return _session_factory
+
+
 @router.get("/conversations")
 async def list_conversations(user=Depends(get_optional_user)):
     """List user's conversations."""
-    if not _session_factory:
+    sf = _get_sf()
+    if not sf:
         return []
     try:
-        async with _session_factory() as session:
+        async with sf() as session:
             svc = ConversationService(session)
             user_id = int(user.id) if str(user.id).isdigit() else 1
             return await svc.list_conversations(user_id)
@@ -181,9 +189,10 @@ async def list_conversations(user=Depends(get_optional_user)):
 @router.get("/conversations/{conv_id}")
 async def get_conversation(conv_id: int, user=Depends(get_optional_user)):
     """Get conversation with all messages."""
-    if not _session_factory:
+    sf = _get_sf()
+    if not sf:
         return {"error": "Database not available"}
-    async with _session_factory() as session:
+    async with sf() as session:
         svc = ConversationService(session)
         user_id = int(user.id) if str(user.id).isdigit() else 1
         result = await svc.get_conversation(conv_id, user_id)
@@ -195,9 +204,10 @@ async def get_conversation(conv_id: int, user=Depends(get_optional_user)):
 @router.delete("/conversations/{conv_id}")
 async def delete_conversation(conv_id: int, user=Depends(get_optional_user)):
     """Delete a conversation."""
-    if not _session_factory:
+    sf = _get_sf()
+    if not sf:
         return {"error": "Database not available"}
-    async with _session_factory() as session:
+    async with sf() as session:
         svc = ConversationService(session)
         user_id = int(user.id) if str(user.id).isdigit() else 1
         ok = await svc.delete_conversation(conv_id, user_id)

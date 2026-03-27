@@ -8,6 +8,7 @@ interface ChatStore {
   streaming: boolean;
   addMessage: (msg: Message) => void;
   updateLastMessage: (partial: Partial<Message>) => void;
+  setMessages: (msgs: Message[]) => void;
   setStreaming: (v: boolean) => void;
   setConversationId: (id: number | null) => void;
   setConversations: (c: Conversation[]) => void;
@@ -27,6 +28,7 @@ export const useChatStore = create<ChatStore>((set) => ({
       if (last) msgs[msgs.length - 1] = { ...last, ...partial };
       return { messages: msgs };
     }),
+  setMessages: (messages) => set({ messages }),
   setStreaming: (streaming) => set({ streaming }),
   setConversationId: (conversationId) => set({ conversationId }),
   setConversations: (conversations) => set({ conversations }),

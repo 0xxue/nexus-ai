@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useChatStore } from '../../store/chat';
 import { useBotStore } from '../../store/bot';
-import { streamQuestion, getConversations } from '../../api/qa';
+import { streamQuestion, getConversations, getConversation, deleteConversation } from '../../api/qa';
 import { MessageBubble } from './MessageBubble';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
+import { toast } from '../../components/ui/Toast';
 import type { Message } from '../../types';
 
 const SUGGESTED = [
@@ -14,19 +15,76 @@ const SUGGESTED = [
 ];
 
 export default function ChatPage() {
-  const { messages, conversations, streaming, conversationId, addMessage, updateLastMessage, setStreaming, setConversations, clearMessages } = useChatStore();
+  const {
+    messages, conversations, streaming, conversationId,
+    addMessage, updateLastMessage, setStreaming,
+    setConversationId, setConversations, clearMessages, setMessages,
+  } = useChatStore();
   const setEmotion = useBotStore(s => s.setEmotion);
   const [input, setInput] = useState('');
   const msgsRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    getConversations().then(setConversations).catch(() => {});
-  }, []);
+  // Bot speech bubble helper
+  const botSay = (text: string) => {
+    (window as any).__botSay?.(text, 3000);
+  };
 
+  // Load conversations on mount
+  const refreshConversations = useCallback(() => {
+    getConversations().then(setConversations).catch(() => {});
+  }, [setConversations]);
+
+  useEffect(() => {
+    refreshConversations();
+  }, [refreshConversations]);
+
+  // Auto-scroll on new messages
   useEffect(() => {
     if (msgsRef.current) msgsRef.current.scrollTop = msgsRef.current.scrollHeight;
   }, [messages]);
 
+  // Load conversation messages when clicking history
+  const loadConversation = useCallback(async (convId: number) => {
+    if (convId === conversationId) return;
+    try {
+      const data = await getConversation(convId);
+      if (data && data.messages) {
+        const msgs: Message[] = data.messages.map((m: any) => ({
+          id: String(m.id),
+          role: m.role,
+          content: m.content,
+          sources: m.sources,
+          chart: m.chart,
+          confidence: m.confidence,
+        }));
+        setConversationId(convId);
+        setMessages(msgs);
+      }
+    } catch {
+      toast('Failed to load conversation', 'error');
+    }
+  }, [conversationId, setConversationId, setMessages]);
+
+  // New conversation
+  const newConversation = useCallback(() => {
+    clearMessages();
+    // conversationId is set to null, next message will create a new one on backend
+  }, [clearMessages]);
+
+  // Delete conversation
+  const handleDelete = useCallback(async (convId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await deleteConversation(convId);
+      if (convId === conversationId) clearMessages();
+      refreshConversations();
+      toast('Conversation deleted', 'info');
+    } catch {
+      toast('Failed to delete', 'error');
+    }
+  }, [conversationId, clearMessages, refreshConversations]);
+
+  // Send message
   const sendMsg = async (text: string) => {
     if (!text.trim() || streaming) return;
 
@@ -37,16 +95,47 @@ export default function ChatPage() {
     addMessage(aiMsg);
     setStreaming(true);
     setEmotion('thinking');
+    botSay('Let me think about that...');
+
+    const STEP_MESSAGES: Record<string, string> = {
+      detect_intent: 'Analyzing your question...',
+      classify_source: 'Identifying data sources...',
+      rag_search: 'Searching knowledge base...',
+      rerank_results: 'Ranking results...',
+      rewrite_query: 'Refining search query...',
+      fetch_data: 'Fetching data from APIs...',
+      check_sufficiency: 'Checking data completeness...',
+      analyze: 'Running AI analysis...',
+      check_hallucination: 'Verifying accuracy...',
+      generate_chart: 'Generating chart...',
+      format_response: 'Formatting answer...',
+      fallback: 'Using general knowledge...',
+    };
 
     try {
       await streamQuestion(text, conversationId ?? undefined, {
-        onStep: (step) => updateLastMessage({ steps: [...(useChatStore.getState().messages.at(-1)?.steps || []), step] }),
-        onContent: (content) => { updateLastMessage({ content, loading: false }); setEmotion('talking'); },
+        onStep: (step) => {
+          updateLastMessage({ steps: [...(useChatStore.getState().messages.at(-1)?.steps || []), step] });
+          botSay(STEP_MESSAGES[step] || `Processing: ${step}`);
+        },
+        onContent: (content) => { updateLastMessage({ content, loading: false }); setEmotion('talking'); botSay('Here is what I found...'); },
         onSources: (sources) => updateLastMessage({ sources }),
         onChart: (chart) => updateLastMessage({ chart }),
         onConfidence: (confidence) => updateLastMessage({ confidence }),
-        onDone: () => { setStreaming(false); setEmotion('happy'); setTimeout(() => setEmotion('idle'), 2000); },
-        onError: (err) => { updateLastMessage({ content: `Error: ${err}`, loading: false }); setStreaming(false); setEmotion('idle'); },
+        onDone: () => {
+          setStreaming(false);
+          setEmotion('happy');
+          botSay('Done! Let me know if you need more.');
+          setTimeout(() => setEmotion('idle'), 3000);
+          refreshConversations();
+        },
+        onError: (err) => {
+          updateLastMessage({ content: `Error: ${err}`, loading: false });
+          setStreaming(false);
+          setEmotion('sad');
+          botSay('Oops, something went wrong...');
+          setTimeout(() => setEmotion('idle'), 3000);
+        },
       });
     } catch {
       updateLastMessage({ content: 'Connection failed. Please check the backend.', loading: false });
@@ -78,30 +167,48 @@ export default function ChatPage() {
             Conversations
           </span>
           <button
-            onClick={() => clearMessages()}
+            onClick={newConversation}
+            title="New Conversation"
             style={{ width: 26, height: 26, border: '1.5px solid var(--line)', background: 'var(--cream)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             <Plus size={14} color="var(--orange)" />
           </button>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+          {conversations.length === 0 && (
+            <div className="font-mono" style={{ padding: '20px 14px', fontSize: 10, color: 'var(--dim)', textAlign: 'center' }}>
+              No conversations yet.<br />Start by asking a question.
+            </div>
+          )}
           {conversations.map(c => (
             <div
               key={c.id}
-              onClick={() => useChatStore.getState().setConversationId(c.id)}
+              onClick={() => loadConversation(c.id)}
               className="animate-slide-in"
               style={{
-                padding: '10px 14px', cursor: 'pointer',
+                padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center',
                 borderLeft: c.id === conversationId ? '3px solid var(--orange)' : '3px solid transparent',
                 background: c.id === conversationId ? 'rgba(212, 82, 26, 0.08)' : 'transparent',
+                transition: 'background 0.2s',
               }}
             >
-              <div style={{ fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 3 }}>
-                {c.title}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 3 }}>
+                  {c.title}
+                </div>
+                <div className="font-mono" style={{ fontSize: 9, color: 'var(--dim)' }}>
+                  {c.message_count} msgs
+                </div>
               </div>
-              <div className="font-mono" style={{ fontSize: 9, color: 'var(--dim)' }}>
-                {c.message_count} msgs
-              </div>
+              <button
+                onClick={(e) => handleDelete(c.id, e)}
+                title="Delete"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, opacity: 0.4, transition: 'opacity 0.2s' }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                onMouseLeave={e => (e.currentTarget.style.opacity = '0.4')}
+              >
+                <Trash2 size={12} color="var(--dim)" />
+              </button>
             </div>
           ))}
         </div>

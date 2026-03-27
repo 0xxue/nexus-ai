@@ -9,12 +9,12 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "@types/three": "^0.183.1",
+    "@types/three": "^0.161.2",
     "typescript": "~5.9.3",
     "vite": "^8.0.1"
   },
   "dependencies": {
-    "@pixiv/three-vrm": "^3.5.1",
+    "@pixiv/three-vrm": "^3.3.3",
     "@tailwindcss/vite": "^4.2.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
@@ -28,7 +28,7 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.13.2",
     "tailwindcss": "^4.2.2",
-    "three": "^0.183.2",
+    "three": "^0.161.0",
     "zustand": "^5.0.12"
   }
 }

@@ -100,6 +100,7 @@ export function createVRMBot(modelUrl = '/model.vrm'): BotPlugin {
       canvas.style.display = 'block';
       canvas.style.width = '100%';
       canvas.style.height = '100%';
+      canvas.style.cursor = 'inherit';
       container.appendChild(canvas);
 
       renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
@@ -135,6 +136,39 @@ export function createVRMBot(modelUrl = '/model.vrm'): BotPlugin {
           VRMUtils.removeUnnecessaryVertices(gltf.scene);
           VRMUtils.removeUnnecessaryJoints(gltf.scene);
           vrm.scene.rotation.y = 0;
+
+          // Disable spring bone debug rendering
+          const sbm = (vrm as any).springBoneManager;
+          if (sbm) {
+            // Hide all collider debug meshes
+            if (sbm.colliderGroups) {
+              for (const group of sbm.colliderGroups) {
+                if (group.colliders) {
+                  for (const col of group.colliders) {
+                    if (col.shape?._helper) col.shape._helper.visible = false;
+                    if (col._helper) col._helper.visible = false;
+                  }
+                }
+              }
+            }
+            // Hide all joint debug meshes
+            if (sbm.joints) {
+              for (const joint of sbm.joints) {
+                if (joint._helper) joint._helper.visible = false;
+              }
+            }
+          }
+
+          // Brute force: hide EVERYTHING that isn't a SkinnedMesh
+          gltf.scene.traverse((obj: any) => {
+            if (obj.isMesh && !obj.isSkinnedMesh) {
+              obj.visible = false;
+            }
+            if (obj.isLineSegments || obj.isLine) {
+              obj.visible = false;
+            }
+          });
+
           scene!.add(vrm.scene);
           console.log('[VRM Bot] Loaded, expressions:', vrm.expressionManager?.expressions?.map(e => e.expressionName));
         },

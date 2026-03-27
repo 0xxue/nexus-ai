@@ -1,4 +1,3 @@
-import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css';
@@ -11,8 +10,5 @@ import { useBotStore } from './store/bot';
 const vrmBot = createVRMBot('/model.vrm');
 useBotStore.getState().setBotPlugin(vrmBot);
 
-createRoot(document.getElementById('app')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+// No StrictMode — prevents double-mounting of 3D WebGL context
+createRoot(document.getElementById('app')!).render(<App />);

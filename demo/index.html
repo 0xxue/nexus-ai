@@ -1,0 +1,3107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXUS · 复古宇宙版</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;500&family=Noto+Sans+SC:wght@300;400&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --cream: #f0e8d8;
+            --paper: #e8dcc8;
+            --warm: #ddd0b8;
+            --orange: #d4521a;
+            --amber: #c8420a;
+            --rust: #8c2a04;
+            --ink: #1a1408;
+            --ink2: #2a200c;
+            --mid: #6a5a3a;
+            --dim: #a09070;
+            --line: rgba(26, 20, 8, 0.15);
+            --line2: rgba(212, 82, 26, 0.3);
+        }
+
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: var(--cream);
+            color: var(--ink);
+            font-family: 'Noto Sans SC', sans-serif;
+            cursor: pointer;
+        }
+
+        /* ── GRAIN OVERLAY ── */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 999;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+            opacity: 0.45;
+            mix-blend-mode: multiply;
+        }
+
+        /* ── CANVAS ── */
+        #bg {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            opacity: 0.7;
+        }
+
+        /* ── GEOMETRIC LINES SVG ── */
+        #geo-lines {
+            position: fixed;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* ── APP SHELL ── */
+        #app {
+            position: fixed;
+            inset: 0;
+            z-index: 2;
+            display: flex;
+        }
+
+        /* ══════════════════════
+   SIDEBAR
+══════════════════════ */
+        #sidebar {
+            width: 80px;
+            height: 100%;
+            border-right: 2px solid var(--ink);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 0;
+            position: relative;
+            background: var(--cream);
+        }
+
+        /* Vertical title */
+        .vert-title {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            transform: rotate(180deg);
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 52px;
+            letter-spacing: 6px;
+            color: var(--orange);
+            line-height: 1;
+            margin-bottom: auto;
+            position: absolute;
+            top: 80px;
+            filter: drop-shadow(2px 2px 0 var(--rust));
+        }
+
+        .nav-row {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: auto;
+            padding-bottom: 8px;
+        }
+
+        .nav-item {
+            width: 48px;
+            height: 48px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            border: 2px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--mid);
+        }
+
+        .nav-item:hover {
+            border-color: var(--ink);
+            color: var(--ink);
+        }
+
+        .nav-item.active {
+            border-color: var(--orange);
+            color: var(--orange);
+            background: rgba(212, 82, 26, 0.08);
+        }
+
+        .nav-item svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .nav-item span {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 7px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* ══════════════════════
+   MAIN
+══════════════════════ */
+        #main {
+            flex: 1;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── Top strip ── */
+        #top-strip {
+            height: 56px;
+            border-bottom: 2px solid var(--ink);
+            display: flex;
+            align-items: center;
+            padding: 0 28px;
+            gap: 20px;
+            flex-shrink: 0;
+            background: var(--cream);
+        }
+
+        .mission-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--dim);
+        }
+
+        .mission-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 26px;
+            letter-spacing: 4px;
+            color: var(--ink);
+        }
+
+        .strip-spacer {
+            flex: 1;
+        }
+
+        .coord-tag {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            color: var(--mid);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .coord-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--orange);
+            animation: blink 2s step-end infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0
+            }
+        }
+
+        .status-box {
+            padding: 4px 12px;
+            border: 1.5px solid var(--orange);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--orange);
+            background: rgba(212, 82, 26, 0.05);
+        }
+
+        /* ── Pages ── */
+        .page {
+            display: none;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .page.active {
+            display: flex;
+        }
+
+        /* ══════════════════════
+   CHAT PAGE
+══════════════════════ */
+        #page-chat {
+            flex-direction: row;
+        }
+
+        /* Chat history rail */
+        .hist-rail {
+            width: 200px;
+            border-right: 1.5px solid var(--line);
+            display: flex;
+            flex-direction: column;
+            background: rgba(232, 220, 200, 0.5);
+        }
+
+        .hist-head {
+            padding: 14px 14px 10px;
+            border-bottom: 1.5px solid var(--line);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .hist-head-title {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--mid);
+        }
+
+        .new-btn {
+            width: 26px;
+            height: 26px;
+            border: 1.5px solid var(--orange);
+            background: transparent;
+            color: var(--orange);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 16px;
+            font-weight: 300;
+        }
+
+        .new-btn:hover {
+            background: var(--orange);
+            color: var(--cream);
+        }
+
+        .conv-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .conv-list::-webkit-scrollbar {
+            width: 3px;
+        }
+
+        .conv-list::-webkit-scrollbar-thumb {
+            background: var(--warm);
+        }
+
+        .c-item {
+            padding: 9px 10px;
+            border-bottom: 1px solid var(--line);
+            cursor: pointer;
+            transition: background 0.2s;
+            animation: slideI 0.3s ease;
+        }
+
+        @keyframes slideI {
+            from {
+                opacity: 0;
+                transform: translateX(-8px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0)
+            }
+        }
+
+        .c-item:hover {
+            background: rgba(212, 82, 26, 0.05);
+        }
+
+        .c-item.active {
+            background: rgba(212, 82, 26, 0.08);
+            border-left: 3px solid var(--orange);
+        }
+
+        .c-title {
+            font-size: 12px;
+            color: var(--ink);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 3px;
+        }
+
+        .c-time {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            color: var(--dim);
+        }
+
+        /* Chat area */
+        .chat-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #msgs {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        #msgs::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        #msgs::-webkit-scrollbar-thumb {
+            background: var(--warm);
+        }
+
+        /* Empty state */
+        #empty-s {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            gap: 28px;
+        }
+
+        .launch-graphic {
+            position: relative;
+            width: 160px;
+            height: 160px;
+        }
+
+        .lg-circle {
+            position: absolute;
+            border-radius: 50%;
+            border: 1.5px solid rgba(212, 82, 26, 0.3);
+            transform: translate(-50%, -50%);
+            left: 50%;
+            top: 50%;
+            animation: expand 4s ease-in-out infinite;
+        }
+
+        .lg-circle:nth-child(1) {
+            width: 60px;
+            height: 60px;
+            animation-delay: 0s;
+        }
+
+        .lg-circle:nth-child(2) {
+            width: 100px;
+            height: 100px;
+            animation-delay: 0.5s;
+            border-color: rgba(212, 82, 26, 0.2);
+        }
+
+        .lg-circle:nth-child(3) {
+            width: 150px;
+            height: 150px;
+            animation-delay: 1s;
+            border-color: rgba(212, 82, 26, 0.1);
+        }
+
+        @keyframes expand {
+
+            0%,
+            100% {
+                transform: translate(-50%, -50%) scale(1)
+            }
+
+            50% {
+                transform: translate(-50%, -50%) scale(1.06)
+            }
+        }
+
+        .lg-shuttle {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 48px;
+            animation: shuttlePulse 4s ease-in-out infinite;
+            filter: drop-shadow(0 0 8px rgba(212, 82, 26, 0.4));
+        }
+
+        @keyframes shuttlePulse {
+
+            0%,
+            100% {
+                transform: translate(-50%, -50%) rotate(-45deg) translateY(0)
+            }
+
+            50% {
+                transform: translate(-50%, -50%) rotate(-45deg) translateY(-6px)
+            }
+        }
+
+        .empty-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 34px;
+            letter-spacing: 5px;
+            color: var(--ink);
+            text-align: center;
+        }
+
+        .empty-sub {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            color: var(--mid);
+            text-align: center;
+            line-height: 1.8;
+            letter-spacing: 1px;
+            max-width: 340px;
+        }
+
+        .q-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            max-width: 440px;
+        }
+
+        .q-chip {
+            padding: 7px 16px;
+            border: 1.5px solid var(--line);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            color: var(--mid);
+            cursor: pointer;
+            transition: all 0.25s;
+            background: rgba(240, 232, 216, 0.8);
+        }
+
+        .q-chip:hover {
+            border-color: var(--orange);
+            color: var(--orange);
+            background: rgba(212, 82, 26, 0.05);
+            transform: translateY(-2px);
+        }
+
+        /* Messages */
+        .m-row {
+            display: flex;
+            gap: 12px;
+            animation: mIn 0.35s ease;
+        }
+
+        @keyframes mIn {
+            from {
+                opacity: 0;
+                transform: translateY(12px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0)
+            }
+        }
+
+        .m-row.user {
+            flex-direction: row-reverse;
+        }
+
+        .m-av {
+            width: 34px;
+            height: 34px;
+            border: 2px solid var(--ink);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            flex-shrink: 0;
+            font-weight: 500;
+            color: var(--ink);
+            background: var(--cream);
+        }
+
+        .m-av.ai {
+            border-color: var(--orange);
+            color: var(--orange);
+            background: rgba(212, 82, 26, 0.06);
+        }
+
+        .m-bub {
+            max-width: 68%;
+            padding: 11px 15px;
+            font-size: 13.5px;
+            line-height: 1.65;
+            word-break: break-word;
+            border: 1.5px solid var(--ink);
+            background: var(--cream);
+        }
+
+        .m-bub.ai {
+            border-color: var(--orange);
+            background: rgba(212, 82, 26, 0.04);
+        }
+
+        .m-bub.user {
+            background: var(--ink);
+            color: var(--cream);
+            border-color: var(--ink);
+        }
+
+        .m-foot {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 7px;
+        }
+
+        .stag {
+            padding: 2px 8px;
+            border: 1px solid var(--orange);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            color: var(--orange);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            animation: tPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes tPop {
+            from {
+                opacity: 0;
+                transform: scale(0.5)
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1)
+            }
+        }
+
+        .conf-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .conf-track {
+            width: 48px;
+            height: 3px;
+            background: var(--warm);
+        }
+
+        .conf-fill {
+            height: 100%;
+            background: var(--orange);
+            transition: width 1.2s ease;
+        }
+
+        .conf-txt {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            color: var(--dim);
+        }
+
+        /* Typing */
+        .t-bub {
+            padding: 12px 16px;
+            display: flex;
+            gap: 5px;
+        }
+
+        .t-d {
+            width: 7px;
+            height: 7px;
+            background: var(--orange);
+            animation: td 1.2s ease-in-out infinite;
+        }
+
+        .t-d:nth-child(2) {
+            animation-delay: .2s
+        }
+
+        .t-d:nth-child(3) {
+            animation-delay: .4s
+        }
+
+        @keyframes td {
+
+            0%,
+            80%,
+            100% {
+                transform: translateY(0)
+            }
+
+            40% {
+                transform: translateY(-7px)
+            }
+        }
+
+        .inline-chart {
+            width: 100%;
+            height: 170px;
+            margin-top: 10px;
+            border: 1.5px solid var(--orange);
+            background: rgba(212, 82, 26, 0.02);
+        }
+
+        /* Input */
+        .chat-input-zone {
+            padding: 14px 24px;
+            border-top: 2px solid var(--ink);
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            background: var(--cream);
+        }
+
+        .inp-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            color: var(--orange);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .inp-wrap {
+            flex: 1;
+            border: 2px solid var(--ink);
+            display: flex;
+            align-items: flex-end;
+        }
+
+        #chat-ta {
+            flex: 1;
+            background: none;
+            border: none;
+            outline: none;
+            padding: 10px 12px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 13px;
+            color: var(--ink);
+            resize: none;
+            max-height: 100px;
+            line-height: 1.5;
+        }
+
+        #chat-ta::placeholder {
+            color: var(--dim);
+        }
+
+        #send-btn {
+            width: 44px;
+            height: 44px;
+            border: none;
+            cursor: pointer;
+            background: var(--orange);
+            color: var(--cream);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        #send-btn:hover {
+            background: var(--rust);
+            transform: scale(1.05);
+        }
+
+        #send-btn svg {
+            fill: var(--cream);
+            width: 16px;
+            height: 16px;
+        }
+
+        /* ══════════════════════
+   KB PAGE
+══════════════════════ */
+        #page-kb {
+            flex-direction: row;
+        }
+
+        .kb-left {
+            width: 220px;
+            border-right: 1.5px solid var(--line);
+            display: flex;
+            flex-direction: column;
+            background: rgba(232, 220, 200, 0.5);
+        }
+
+        .kb-right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .col-head {
+            padding: 14px 16px;
+            border-bottom: 1.5px solid var(--line);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .col-title {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--mid);
+        }
+
+        .sq-btn {
+            width: 26px;
+            height: 26px;
+            border: 1.5px solid var(--orange);
+            background: transparent;
+            color: var(--orange);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 300;
+            transition: all 0.2s;
+        }
+
+        .sq-btn:hover {
+            background: var(--orange);
+            color: var(--cream);
+        }
+
+        .kb-col-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .kb-col-list::-webkit-scrollbar {
+            width: 3px;
+        }
+
+        .kb-col-list::-webkit-scrollbar-thumb {
+            background: var(--warm);
+        }
+
+        .kb-row {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--line);
+            cursor: pointer;
+            transition: background 0.2s;
+            animation: slideI 0.3s ease;
+        }
+
+        .kb-row:hover {
+            background: rgba(212, 82, 26, 0.05);
+        }
+
+        .kb-row.active {
+            background: rgba(212, 82, 26, 0.08);
+            border-left: 3px solid var(--orange);
+        }
+
+        .kb-row-name {
+            font-size: 13px;
+            color: var(--ink);
+            margin-bottom: 3px;
+        }
+
+        .kb-row-cnt {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            color: var(--dim);
+        }
+
+        .upload-zone {
+            margin: 16px;
+            border: 2px dashed var(--orange);
+            padding: 28px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: rgba(212, 82, 26, 0.02);
+            animation: uploadBob 4s ease-in-out infinite;
+        }
+
+        @keyframes uploadBob {
+
+            0%,
+            100% {
+                transform: translateY(0)
+            }
+
+            50% {
+                transform: translateY(-4px)
+            }
+        }
+
+        .upload-zone:hover {
+            background: rgba(212, 82, 26, 0.06);
+        }
+
+        .upload-icon {
+            font-size: 36px;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .upload-txt {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            color: var(--mid);
+        }
+
+        .upload-hint {
+            font-size: 10px;
+            color: var(--dim);
+            margin-top: 4px;
+        }
+
+        .docs-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 16px;
+        }
+
+        .docs-list::-webkit-scrollbar {
+            width: 3px;
+        }
+
+        .docs-list::-webkit-scrollbar-thumb {
+            background: var(--warm);
+        }
+
+        .doc-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--line);
+            animation: slideI 0.3s ease;
+        }
+
+        .doc-ico {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .doc-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .doc-name {
+            font-size: 12.5px;
+            color: var(--ink);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 2px;
+        }
+
+        .doc-size {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            color: var(--dim);
+        }
+
+        .status {
+            padding: 3px 9px;
+            border: 1.5px solid;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 8px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .status.ready {
+            border-color: #2a7a2a;
+            color: #2a7a2a;
+            background: rgba(42, 122, 42, 0.06);
+        }
+
+        .status.processing {
+            border-color: var(--orange);
+            color: var(--orange);
+            animation: blinkS 1.5s ease-in-out infinite;
+        }
+
+        .status.failed {
+            border-color: #8a2020;
+            color: #8a2020;
+            background: rgba(138, 32, 32, 0.06);
+        }
+
+        @keyframes blinkS {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0.4
+            }
+        }
+
+        .del-btn {
+            width: 24px;
+            height: 24px;
+            border: 1px solid rgba(138, 32, 32, 0.3);
+            background: transparent;
+            cursor: pointer;
+            color: #8a2020;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .del-btn:hover {
+            background: rgba(138, 32, 32, 0.1);
+        }
+
+        .search-zone {
+            padding: 14px 16px;
+            border-top: 2px solid var(--ink);
+            background: rgba(232, 220, 200, 0.7);
+        }
+
+        .search-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            color: var(--orange);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .search-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .search-inp {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1.5px solid var(--ink);
+            background: var(--cream);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px;
+            color: var(--ink);
+            outline: none;
+        }
+
+        .search-inp:focus {
+            border-color: var(--orange);
+        }
+
+        .search-go {
+            padding: 8px 16px;
+            background: var(--orange);
+            border: none;
+            color: var(--cream);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            cursor: pointer;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            transition: background 0.2s;
+        }
+
+        .search-go:hover {
+            background: var(--rust);
+        }
+
+        .search-res {
+            margin-top: 10px;
+            padding: 10px 12px;
+            border: 1.5px solid var(--orange);
+            background: rgba(212, 82, 26, 0.03);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            color: var(--mid);
+            line-height: 1.7;
+        }
+
+        /* ══════════════════════
+   DASHBOARD PAGE
+══════════════════════ */
+        #page-dash {
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 24px 32px;
+            gap: 22px;
+        }
+
+        #page-dash::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        #page-dash::-webkit-scrollbar-thumb {
+            background: var(--warm);
+        }
+
+        .dash-head {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+        }
+
+        .dash-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 44px;
+            letter-spacing: 6px;
+            color: var(--ink);
+            line-height: 1;
+        }
+
+        .dash-title span {
+            color: var(--orange);
+        }
+
+        .refresh-btn {
+            padding: 8px 18px;
+            border: 2px solid var(--ink);
+            background: transparent;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            color: var(--ink);
+            cursor: pointer;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .refresh-btn:hover {
+            background: var(--ink);
+            color: var(--cream);
+        }
+
+        /* Stat cards */
+        .stat-cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+        }
+
+        .sc {
+            padding: 18px 16px;
+            border: 2px solid var(--ink);
+            background: var(--paper);
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.25s, box-shadow 0.25s;
+            animation: cardIn 0.5s ease both;
+        }
+
+        .sc:nth-child(1) {
+            animation-delay: .05s
+        }
+
+        .sc:nth-child(2) {
+            animation-delay: .1s
+        }
+
+        .sc:nth-child(3) {
+            animation-delay: .15s
+        }
+
+        .sc:nth-child(4) {
+            animation-delay: .2s
+        }
+
+        @keyframes cardIn {
+            from {
+                opacity: 0;
+                transform: translateY(18px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0)
+            }
+        }
+
+        .sc:hover {
+            transform: translateY(-3px) rotate(0.4deg);
+            box-shadow: 4px 4px 0 var(--orange);
+        }
+
+        .sc::before {
+            content: attr(data-num);
+            position: absolute;
+            right: -4px;
+            bottom: -16px;
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 90px;
+            color: rgba(212, 82, 26, 0.06);
+            line-height: 1;
+        }
+
+        .sc-ico {
+            font-size: 22px;
+            margin-bottom: 10px;
+        }
+
+        .sc-lbl {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--mid);
+            margin-bottom: 6px;
+        }
+
+        .sc-val {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 36px;
+            letter-spacing: 2px;
+            color: var(--ink);
+            line-height: 1;
+            margin-bottom: 5px;
+        }
+
+        .sc:nth-child(2) .sc-val,
+        .sc:nth-child(4) .sc-val {
+            color: var(--orange);
+        }
+
+        .sc-chg {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            color: #3a7a3a;
+        }
+
+        .sc-chg.down {
+            color: #8a2020;
+        }
+
+        /* Charts */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+        }
+
+        .chart-card {
+            border: 2px solid var(--ink);
+            padding: 18px;
+            background: var(--paper);
+            animation: cardIn 0.5s ease both;
+        }
+
+        .chart-card:nth-child(1) {
+            animation-delay: .25s
+        }
+
+        .chart-card:nth-child(2) {
+            animation-delay: .3s
+        }
+
+        .chart-card-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 16px;
+            letter-spacing: 3px;
+            color: var(--ink);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .ct-dot {
+            width: 10px;
+            height: 10px;
+            background: var(--orange);
+        }
+
+        .chart-h {
+            height: 210px;
+        }
+
+        /* ── TOAST ── */
+        #toast-box {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .toast {
+            padding: 10px 18px;
+            border: 2px solid var(--ink);
+            background: var(--cream);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            animation: toastIn 0.35s ease;
+            min-width: 210px;
+            box-shadow: 4px 4px 0 var(--orange);
+        }
+
+        @keyframes toastIn {
+            from {
+                opacity: 0;
+                transform: translateX(30px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0)
+            }
+        }
+
+        .toast.out {
+            animation: toastOut 0.3s ease forwards;
+        }
+
+        @keyframes toastOut {
+            to {
+                opacity: 0;
+                transform: translateX(30px)
+            }
+        }
+
+        .toast.success {
+            border-color: #3a7a3a;
+        }
+
+        .toast.error {
+            border-color: #8a2020;
+        }
+
+        /* ── MODAL ── */
+        .m-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 2000;
+            background: rgba(26, 20, 8, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeO 0.2s ease;
+        }
+
+        @keyframes fadeO {
+            from {
+                opacity: 0
+            }
+
+            to {
+                opacity: 1
+            }
+        }
+
+        .m-box {
+            width: 360px;
+            padding: 28px;
+            border: 2px solid var(--ink);
+            background: var(--cream);
+            box-shadow: 8px 8px 0 var(--orange);
+            animation: mBoxIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes mBoxIn {
+            from {
+                opacity: 0;
+                transform: scale(0.85) translateY(20px)
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0)
+            }
+        }
+
+        .m-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 24px;
+            letter-spacing: 4px;
+            color: var(--ink);
+            margin-bottom: 16px;
+        }
+
+        .m-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid var(--ink);
+            background: var(--cream);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 13px;
+            color: var(--ink);
+            outline: none;
+            margin-bottom: 16px;
+        }
+
+        .m-input:focus {
+            border-color: var(--orange);
+        }
+
+        .m-acts {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .m-cancel {
+            padding: 8px 18px;
+            border: 2px solid var(--mid);
+            background: transparent;
+            color: var(--mid);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+        }
+
+        .m-cancel:hover {
+            border-color: var(--ink);
+            color: var(--ink);
+        }
+
+        .m-confirm {
+            padding: 8px 18px;
+            border: none;
+            background: var(--orange);
+            color: var(--cream);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: background 0.2s;
+        }
+
+        .m-confirm:hover {
+            background: var(--rust);
+        }
+
+        /* ═══════════════════════════════════════
+   ARIA FLOATING SPIRIT (warm palette)
+═══════════════════════════════════════ */
+        #aria-spirit {
+            position: fixed;
+            z-index: 1000;
+            width: 130px;
+            height: 130px;
+            left: calc(100vw - 170px);
+            top: calc(100vh - 220px);
+            user-select: none;
+            transition: left 0.7s cubic-bezier(0.34, 1.2, 0.64, 1), top 0.7s cubic-bezier(0.34, 1.2, 0.64, 1);
+            filter: drop-shadow(0 0 20px rgba(212, 82, 26, 0.25));
+        }
+
+        #aria-spirit.dragging {
+            transition: none !important;
+            filter: drop-shadow(0 0 30px rgba(212, 82, 26, 0.5));
+        }
+
+        /* Halos */
+        .sp-halo {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            border-radius: 50%;
+            border: 1px solid;
+            pointer-events: none;
+        }
+
+        .sp-h1 {
+            width: 110px;
+            height: 110px;
+            border-color: rgba(212, 82, 26, 0.25);
+            transform: translate(-50%, -50%);
+            animation: hSpin 9s linear infinite;
+        }
+
+        .sp-h2 {
+            width: 125px;
+            height: 125px;
+            border-color: rgba(26, 20, 8, 0.12);
+            transform: translate(-50%, -50%);
+            animation: hSpin 14s linear infinite reverse;
+        }
+
+        @keyframes hSpin {
+            from {
+                transform: translate(-50%, -50%) rotate(0)
+            }
+
+            to {
+                transform: translate(-50%, -50%) rotate(360deg)
+            }
+        }
+
+        .sp-h1::before,
+        .sp-h2::before {
+            content: '';
+            position: absolute;
+            border-radius: 50%;
+            top: -3px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .sp-h1::before {
+            width: 6px;
+            height: 6px;
+            background: var(--orange);
+            box-shadow: 0 0 8px var(--orange);
+        }
+
+        .sp-h2::before {
+            width: 5px;
+            height: 5px;
+            background: var(--ink);
+            box-shadow: 0 0 6px rgba(26, 20, 8, 0.4);
+        }
+
+        /* Antenna */
+        #sp-antenna {
+            position: absolute;
+            top: -16px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: 18px;
+            background: linear-gradient(to top, rgba(140, 42, 4, 0.5), transparent);
+        }
+
+        #sp-ant-tip {
+            position: absolute;
+            top: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--orange);
+            box-shadow: 0 0 10px var(--orange);
+            animation: antP 2s ease-in-out infinite;
+        }
+
+        @keyframes antP {
+
+            0%,
+            100% {
+                transform: translateX(-50%) scale(1);
+                opacity: 1
+            }
+
+            50% {
+                transform: translateX(-50%) scale(1.6);
+                opacity: 0.6
+            }
+        }
+
+        /* Body - warm palette */
+        #sp-body {
+            width: 96px;
+            height: 96px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 36% 30%, #f0e8d8 0%, #ddd0b8 28%, #c8a870 60%, #6a5a3a 100%);
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 28px rgba(212, 82, 26, 0.4), 0 0 60px rgba(212, 82, 26, 0.15), inset 0 -10px 26px rgba(0, 0, 0, 0.25), inset 0 5px 15px rgba(255, 255, 255, 0.2);
+            transition: box-shadow 0.4s, transform 0.3s;
+            overflow: hidden;
+            border: 2px solid var(--ink);
+        }
+
+        /* Cheeks */
+        #sp-body::before {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(212, 82, 26, 0.25);
+            bottom: 26px;
+            left: 12px;
+            box-shadow: 54px 0 0 rgba(212, 82, 26, 0.25);
+        }
+
+        /* Face */
+        #sp-face {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -65%);
+            width: 60px;
+            height: 42px;
+            background: var(--ink);
+            border-radius: 10px;
+            border: 1.5px solid rgba(106, 90, 58, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 11px;
+            overflow: hidden;
+        }
+
+        .sp-eye {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 33% 33%, #ffe0a0, #d4521a 45%, #8c2a04);
+            box-shadow: 0 0 8px var(--orange);
+            position: relative;
+            transition: transform 0.3s, border-radius 0.3s;
+        }
+
+        .sp-eye::after {
+            content: '';
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.85);
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+        }
+
+        /* Eye states */
+        .sp-eye.blink {
+            transform: scaleY(0.08) !important;
+        }
+
+        .sp-eye.thinking {
+            border-radius: 50%;
+            transform: translateY(-2px) scale(1.1);
+            box-shadow: 0 0 12px var(--amber), 0 0 22px rgba(200, 66, 10, 0.5);
+        }
+
+        .sp-eye.happy {
+            border-radius: 50% 50% 50% 50%/20% 20% 80% 80%;
+            transform: scaleY(0.55);
+        }
+
+        .sp-eye.talking {
+            animation: eyeTlk 0.18s ease-in-out infinite alternate;
+        }
+
+        @keyframes eyeTlk {
+            from {
+                transform: scaleY(1)
+            }
+
+            to {
+                transform: scaleY(0.65)
+            }
+        }
+
+        .sp-eye.love {
+            background: radial-gradient(circle at 35% 35%, #ffe0a0, #d4521a);
+            box-shadow: 0 0 10px var(--orange);
+        }
+
+        /* Mouth area */
+        #sp-mouth {
+            position: absolute;
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
+            height: 9px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+        }
+
+        #sp-smile {
+            width: 20px;
+            height: 9px;
+            border-bottom: 2.5px solid rgba(240, 232, 216, 0.8);
+            border-radius: 0 0 10px 10px;
+            transition: all 0.3s;
+        }
+
+        #sp-talkbars {
+            display: none;
+            gap: 2px;
+            align-items: flex-end;
+            width: 26px;
+            height: 9px;
+        }
+
+        .sp-tb {
+            flex: 1;
+            background: rgba(212, 82, 26, 0.8);
+            border-radius: 1px;
+            animation: spTb 0.4s ease-in-out infinite;
+        }
+
+        .sp-tb:nth-child(1) {
+            height: 3px;
+            animation-delay: 0s
+        }
+
+        .sp-tb:nth-child(2) {
+            height: 7px;
+            animation-delay: .07s
+        }
+
+        .sp-tb:nth-child(3) {
+            height: 5px;
+            animation-delay: .14s
+        }
+
+        .sp-tb:nth-child(4) {
+            height: 8px;
+            animation-delay: .07s
+        }
+
+        .sp-tb:nth-child(5) {
+            height: 4px;
+            animation-delay: .18s
+        }
+
+        @keyframes spTb {
+
+            0%,
+            100% {
+                transform: scaleY(1)
+            }
+
+            50% {
+                transform: scaleY(0.3)
+            }
+        }
+
+        #sp-thinkdots {
+            display: none;
+            gap: 3px;
+            align-items: center;
+        }
+
+        .sp-tkd {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: rgba(200, 66, 10, 0.9);
+            animation: spTkd 1s ease-in-out infinite;
+        }
+
+        .sp-tkd:nth-child(2) {
+            animation-delay: .2s
+        }
+
+        .sp-tkd:nth-child(3) {
+            animation-delay: .4s
+        }
+
+        @keyframes spTkd {
+
+            0%,
+            80%,
+            100% {
+                transform: translateY(0) scale(1)
+            }
+
+            40% {
+                transform: translateY(-3px) scale(1.3)
+            }
+        }
+
+        /* ── SPEECH BUBBLE ── */
+        #aria-speech {
+            position: fixed;
+            z-index: 1001;
+            max-width: 210px;
+            min-width: 120px;
+            background: var(--paper);
+            border: 2px solid var(--ink);
+            padding: 9px 14px;
+            font-size: 12.5px;
+            color: var(--ink);
+            line-height: 1.5;
+            box-shadow: 4px 4px 0 var(--orange);
+            pointer-events: none;
+            transition: opacity 0.35s, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), left 0.7s cubic-bezier(0.34, 1.2, 0.64, 1), top 0.7s cubic-bezier(0.34, 1.2, 0.64, 1);
+            transform-origin: center bottom;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        #aria-speech.hidden {
+            opacity: 0;
+            transform: scale(0.8) translateY(8px);
+        }
+
+        #aria-speech .sb-tail {
+            position: absolute;
+            width: 0;
+            height: 0;
+            border-left: 7px solid transparent;
+            border-right: 7px solid transparent;
+        }
+
+        /* ── TRAIL PARTICLES ── */
+        .trail-particle {
+            position: fixed;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 999;
+            animation: trailFade 0.8s ease forwards;
+        }
+
+        @keyframes trailFade {
+            0% {
+                opacity: 0.7;
+                transform: scale(1)
+            }
+
+            100% {
+                opacity: 0;
+                transform: scale(0.2) translateY(-10px)
+            }
+        }
+
+        /* Idle float for spirit */
+        @keyframes spiritFloat {
+
+            0%,
+            100% {
+                transform: translateY(0)
+            }
+
+            50% {
+                transform: translateY(-8px)
+            }
+        }
+
+        /* Robot body animations */
+        @keyframes bodyThink {
+
+            0%,
+            100% {
+                transform: translate(-50%, -50%) rotate(0)
+            }
+
+            25% {
+                transform: translate(-50%, -50%) rotate(-5deg)
+            }
+
+            75% {
+                transform: translate(-50%, -50%) rotate(5deg)
+            }
+        }
+
+        @keyframes bodyTalk {
+
+            0%,
+            100% {
+                transform: translate(-50%, -50%) scale(1)
+            }
+
+            50% {
+                transform: translate(-50%, -50%) scale(1.03)
+            }
+        }
+
+        @keyframes bodyHappy {
+
+            0%,
+            100% {
+                transform: translate(-50%, -50%) scale(1) rotate(0)
+            }
+
+            30% {
+                transform: translate(-50%, -50%) scale(1.12) rotate(8deg)
+            }
+
+            70% {
+                transform: translate(-50%, -50%) scale(1.08) rotate(-5deg)
+            }
+        }
+
+        @keyframes bodyShake {
+
+            0%,
+            100% {
+                transform: translate(-50%, -50%) rotate(0)
+            }
+
+            20% {
+                transform: translate(-50%, -50%) rotate(-12deg)
+            }
+
+            40% {
+                transform: translate(-50%, -50%) rotate(10deg)
+            }
+
+            60% {
+                transform: translate(-50%, -50%) rotate(-8deg)
+            }
+
+            80% {
+                transform: translate(-50%, -50%) rotate(6deg)
+            }
+        }
+
+        /* ── Destination beacon ── */
+        #beacon {
+            position: fixed;
+            z-index: 998;
+            pointer-events: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 1.5px solid rgba(212, 82, 26, 0.3);
+            transform: translate(-50%, -50%);
+            transition: all 0.4s;
+            opacity: 0;
+        }
+
+        #beacon::before {
+            content: '';
+            position: absolute;
+            inset: -8px;
+            border-radius: 50%;
+            border: 1px solid rgba(212, 82, 26, 0.15);
+        }
+
+        #beacon.show {
+            opacity: 1;
+            animation: beaconPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes beaconPulse {
+
+            0%,
+            100% {
+                transform: translate(-50%, -50%) scale(1)
+            }
+
+            50% {
+                transform: translate(-50%, -50%) scale(1.2)
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- GEOMETRIC LINES -->
+    <svg id="geo-lines" viewBox="0 0 1400 900" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Corner diagonals -->
+        <line x1="0" y1="0" x2="700" y2="900" stroke="rgba(212,82,26,0.12)" stroke-width="1" />
+        <line x1="1400" y1="0" x2="400" y2="900" stroke="rgba(26,20,8,0.08)" stroke-width="1" />
+        <line x1="80" y1="0" x2="1400" y2="700" stroke="rgba(212,82,26,0.08)" stroke-width="1" />
+        <!-- Arcs -->
+        <circle cx="0" cy="900" r="300" fill="none" stroke="rgba(212,82,26,0.1)" stroke-width="1" />
+        <circle cx="0" cy="900" r="450" fill="none" stroke="rgba(212,82,26,0.07)" stroke-width="1" />
+        <circle cx="0" cy="900" r="600" fill="none" stroke="rgba(212,82,26,0.05)" stroke-width="1" />
+        <!-- Small markers -->
+        <text x="120" y="400" font-family="IBM Plex Mono" font-size="9" fill="rgba(26,20,8,0.2)"
+            transform="rotate(-90 120 400)">TRAJECTORY · 01 · LAUNCH VECTOR</text>
+        <text x="1280" y="200" font-family="IBM Plex Mono" font-size="8" fill="rgba(212,82,26,0.3)">4TH ORBIT
+            TRY.</text>
+        <text x="200" y="860" font-family="IBM Plex Mono" font-size="8" fill="rgba(26,20,8,0.2)">2ND ALTITUDE</text>
+        <text x="440" y="860" font-family="IBM Plex Mono" font-size="8" fill="rgba(26,20,8,0.2)">3RD ALTITUDE</text>
+        <line x1="240" y1="856" x2="240" y2="840" stroke="rgba(26,20,8,0.2)" stroke-width="1" />
+        <line x1="480" y1="856" x2="480" y2="840" stroke="rgba(26,20,8,0.2)" stroke-width="1" />
+    </svg>
+
+    <canvas id="bg"></canvas>
+    <div id="toast-box"></div>
+    <div id="beacon"></div>
+
+    <!-- ═══ ARIA FLOATING SPIRIT ═══ -->
+    <div id="aria-spirit">
+        <div class="sp-halo sp-h1"></div>
+        <div class="sp-halo sp-h2"></div>
+        <div id="sp-antenna">
+            <div id="sp-ant-tip"></div>
+        </div>
+        <div id="sp-body">
+            <div id="sp-face">
+                <div class="sp-eye" id="sp-eL"></div>
+                <div class="sp-eye" id="sp-eR"></div>
+                <div id="sp-mouth">
+                    <div id="sp-smile"></div>
+                    <div id="sp-talkbars">
+                        <div class="sp-tb"></div>
+                        <div class="sp-tb"></div>
+                        <div class="sp-tb"></div>
+                        <div class="sp-tb"></div>
+                        <div class="sp-tb"></div>
+                    </div>
+                    <div id="sp-thinkdots">
+                        <div class="sp-tkd"></div>
+                        <div class="sp-tkd"></div>
+                        <div class="sp-tkd"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Speech bubble -->
+    <div id="aria-speech" class="hidden">
+        <span id="speech-text">Hello! I'm ARIA</span>
+        <div class="sb-tail" id="sb-tail"></div>
+    </div>
+
+    <div id="app">
+        <!-- SIDEBAR -->
+        <nav id="sidebar">
+            <div class="vert-title">NEXUS</div>
+            <div class="nav-row">
+                <div class="nav-item active" data-page="chat">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                    <span>Chat</span>
+                </div>
+                <div class="nav-item" data-page="kb">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                    </svg>
+                    <span>Know</span>
+                </div>
+                <div class="nav-item" data-page="dash">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7" />
+                        <rect x="14" y="3" width="7" height="7" />
+                        <rect x="3" y="14" width="7" height="7" />
+                        <rect x="14" y="14" width="7" height="7" />
+                    </svg>
+                    <span>Dash</span>
+                </div>
+            </div>
+        </nav>
+
+        <!-- MAIN -->
+        <div id="main">
+            <!-- TOP STRIP -->
+            <div id="top-strip">
+                <div>
+                    <div class="mission-label">Mission Control</div>
+                    <div class="mission-title">NexusAI · Intelligence System</div>
+                </div>
+                <div class="strip-spacer"></div>
+                <div class="coord-tag">
+                    <div class="coord-dot"></div>
+                    <span id="clock-txt">00:00:00</span>
+                </div>
+                <div class="status-box">● ONLINE</div>
+            </div>
+
+            <!-- CHAT -->
+            <div class="page active" id="page-chat">
+                <div class="hist-rail">
+                    <div class="hist-head">
+                        <span class="hist-head-title">Conversations</span>
+                        <button class="new-btn" id="new-conv-btn">+</button>
+                    </div>
+                    <div class="conv-list" id="conv-list"></div>
+                </div>
+                <div class="chat-body">
+                    <div id="msgs">
+                        <div id="empty-s">
+                            <div class="launch-graphic">
+                                <div class="lg-circle"></div>
+                                <div class="lg-circle"></div>
+                                <div class="lg-circle"></div>
+                                <div class="lg-shuttle">🚀</div>
+                            </div>
+                            <div class="empty-title">Ready for launch</div>
+                            <div class="empty-sub">THE UNIVERSE IS WIDER THAN OUR VIEWS OF IT.<br>ASK NEXUS ANYTHING.
+                            </div>
+                            <div class="q-chips" id="q-chips">
+                                <div class="q-chip" data-q="分析近7天用户趋势">▶ 分析近7天用户趋势</div>
+                                <div class="q-chip" data-q="查看资金余额状态">▶ 查看资金余额状态</div>
+                                <div class="q-chip" data-q="知识库里有哪些文档？">▶ 知识库文档列表</div>
+                                <div class="q-chip" data-q="系统当前运行状态如何">▶ 系统运行状态</div>
+                                <div class="q-chip" data-q="帮我分析业务数据">▶ 帮我分析业务数据</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chat-input-zone">
+                        <div style="flex:1">
+                            <div class="inp-label">// Input Query</div>
+                            <div class="inp-wrap">
+                                <textarea id="chat-ta" rows="1"
+                                    placeholder="Type your question... (Enter to send, Shift+Enter for newline)"></textarea>
+                                <button id="send-btn">
+                                    <svg viewBox="0 0 24 24">
+                                        <path d="M22 2L11 13" />
+                                        <path d="M22 2L15 22l-4-9-9-4 20-7z" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KB -->
+            <div class="page" id="page-kb">
+                <div class="kb-left">
+                    <div class="col-head">
+                        <span class="col-title">Knowledge Bases</span>
+                        <button class="sq-btn" id="add-kb-btn">+</button>
+                    </div>
+                    <div class="kb-col-list" id="kb-col-list"></div>
+                </div>
+                <div class="kb-right">
+                    <div class="col-head">
+                        <span class="col-title" id="kb-doc-head">Select a Collection</span>
+                        <button class="sq-btn" id="up-trig">↑</button>
+                    </div>
+                    <input type="file" id="file-inp" multiple accept=".pdf,.doc,.docx,.xlsx,.xls,.txt"
+                        style="display:none">
+                    <div class="upload-zone" id="up-zone">
+                        <span class="upload-icon">📡</span>
+                        <div class="upload-txt">DRAG FILES TO UPLOAD</div>
+                        <div class="upload-hint">PDF · WORD · EXCEL · TXT</div>
+                    </div>
+                    <div class="docs-list" id="docs-list"></div>
+                    <div class="search-zone">
+                        <div class="search-label">// Semantic Search Test</div>
+                        <div class="search-row">
+                            <input type="text" class="search-inp" id="sem-inp"
+                                placeholder="Query the knowledge base...">
+                            <button class="search-go" id="sem-btn">Run</button>
+                        </div>
+                        <div id="sem-res"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DASH -->
+            <div class="page" id="page-dash">
+                <div class="dash-head">
+                    <div class="dash-title">Data <span>Mission</span><br>Control</div>
+                    <button class="refresh-btn" id="ref-btn">↺ Refresh</button>
+                </div>
+                <div class="stat-cards" id="stat-cards">
+                    <div class="sc" data-num="01">
+                        <div class="sc-ico">◉</div>
+                        <div class="sc-lbl">Total Users</div>
+                        <div class="sc-val" id="s-users">—</div>
+                        <div class="sc-chg" id="s-users-c">Loading...</div>
+                    </div>
+                    <div class="sc" data-num="02">
+                        <div class="sc-ico">⚡</div>
+                        <div class="sc-lbl">Active Users</div>
+                        <div class="sc-val" id="s-active">—</div>
+                        <div class="sc-chg" id="s-active-c">Loading...</div>
+                    </div>
+                    <div class="sc" data-num="03">
+                        <div class="sc-ico">◈</div>
+                        <div class="sc-lbl">Balance</div>
+                        <div class="sc-val" id="s-balance">—</div>
+                        <div class="sc-chg down" id="s-balance-c">Loading...</div>
+                    </div>
+                    <div class="sc" data-num="04">
+                        <div class="sc-ico">▲</div>
+                        <div class="sc-lbl">Days Remaining</div>
+                        <div class="sc-val" id="s-days">—</div>
+                        <div class="sc-chg" id="s-days-c">Loading...</div>
+                    </div>
+                </div>
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <div class="chart-card-title"><span class="ct-dot"></span>USER TREND (7 DAYS)</div>
+                        <div class="chart-h" id="ch-users"></div>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-card-title"><span class="ct-dot" style="background:#3a7a3a"></span>COST
+                            CONSUMPTION</div>
+                        <div class="chart-h" id="ch-cost"></div>
+                    </div>
+                </div>
+            </div>
+        </div> <!-- finish main -->
+    </div> <!-- finish app -->
+
+    <script>
+        // ─── CLOCK ───
+        function tick() {
+            const n = new Date();
+            document.getElementById('clock-txt').textContent =
+                [n.getHours(), n.getMinutes(), n.getSeconds()].map(v => String(v).padStart(2, '0')).join(':');
+        }
+        tick(); setInterval(tick, 1000);
+
+        // ─── THREE.JS: minimal retro starfield ───
+        const cvs = document.getElementById('bg');
+        const ren = new THREE.WebGLRenderer({ canvas: cvs, alpha: true });
+        ren.setPixelRatio(Math.min(devicePixelRatio, 2));
+        ren.setSize(innerWidth, innerHeight);
+        const sc = new THREE.Scene();
+        const cam = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 1000);
+        cam.position.z = 80;
+
+        // Warm dust particles
+        const N = 120;
+        const pos = new Float32Array(N * 3);
+        const vels = [];
+        for (let i = 0; i < N; i++) {
+            pos[i * 3] = (Math.random() - 0.5) * 300;
+            pos[i * 3 + 1] = (Math.random() - 0.5) * 200;
+            pos[i * 3 + 2] = (Math.random() - 0.5) * 100;
+            vels.push({ vx: (Math.random() - 0.5) * 0.04, vy: (Math.random() - 0.5) * 0.04 });
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        const ptMat = new THREE.PointsMaterial({ color: 0xd4521a, size: 1.0, transparent: true, opacity: 0.4, sizeAttenuation: true });
+        sc.add(new THREE.Points(geo, ptMat));
+
+        // Grid lines (retro)
+        const gridMat = new THREE.LineBasicMaterial({ color: 0xd4521a, transparent: true, opacity: 0.06 });
+        for (let i = -10; i <= 10; i++) {
+            const g1 = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(i * 20, -120, 0), new THREE.Vector3(i * 20, 120, 0)]);
+            const g2 = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-200, i * 12, 0), new THREE.Vector3(200, i * 12, 0)]);
+            sc.add(new THREE.Line(g1, gridMat));
+            sc.add(new THREE.Line(g2, gridMat));
+        }
+
+        let aiThink = false;
+        let frame = 0;
+        function anim() {
+            requestAnimationFrame(anim);
+            frame++;
+            for (let i = 0; i < N; i++) {
+                pos[i * 3] += vels[i].vx;
+                pos[i * 3 + 1] += vels[i].vy;
+                if (Math.abs(pos[i * 3]) > 150) vels[i].vx *= -1;
+                if (Math.abs(pos[i * 3 + 1]) > 100) vels[i].vy *= -1;
+            }
+            geo.attributes.position.needsUpdate = true;
+            ptMat.opacity = aiThink ? 0.7 : 0.35;
+            ptMat.color.setHex(aiThink ? 0xc8420a : 0xd4521a);
+            ren.render(sc, cam);
+        }
+        anim();
+        window.addEventListener('resize', () => {
+            cam.aspect = innerWidth / innerHeight;
+            cam.updateProjectionMatrix();
+            ren.setSize(innerWidth, innerHeight);
+        });
+
+        // ─── TOAST ───
+        function toast(msg, type = 'info') {
+            const icons = { success: '✓', error: '✕', info: '►' };
+            const t = document.createElement('div');
+            t.className = `toast ${type}`;
+            t.innerHTML = `<span style="color:${type === 'success' ? '#3a7a3a' : type === 'error' ? '#8a2020' : 'var(--orange)'}">${icons[type]}</span> ${msg}`;
+            document.getElementById('toast-box').appendChild(t);
+            setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 300); }, 3000);
+        }
+
+        // ════════════════════════════════════════════════
+        // ARIA SPIRIT ENGINE
+        // ════════════════════════════════════════════════
+        const spirit = document.getElementById('aria-spirit');
+        const speechEl = document.getElementById('aria-speech');
+        const speechTxt = document.getElementById('speech-text');
+        const beacon = document.getElementById('beacon');
+
+        let ariaX = window.innerWidth - 170;
+        let ariaY = window.innerHeight - 220;
+        let ariaW = 130, ariaH = 130;
+
+        let targetX = ariaX, targetY = ariaY;
+        let isMoving = false;
+        let isDragging = false;
+        let dragOffX = 0, dragOffY = 0;
+        let floatAnimId = null;
+        let speechTimeout = null;
+        let idleTimer = null;
+
+        function getAriaCenter() {
+            return { x: ariaX + ariaW / 2, y: ariaY + ariaH / 2 };
+        }
+
+        function setAriaPos(x, y, animate = true) {
+            x = Math.max(10, Math.min(window.innerWidth - ariaW - 10, x));
+            y = Math.max(10, Math.min(window.innerHeight - ariaH - 10, y));
+            ariaX = x; ariaY = y;
+            if (animate) {
+                spirit.style.transition = 'left 0.7s cubic-bezier(0.34,1.2,0.64,1), top 0.7s cubic-bezier(0.34,1.2,0.64,1)';
+            } else {
+                spirit.style.transition = 'none';
+            }
+            spirit.style.left = x + 'px';
+            spirit.style.top = y + 'px';
+            updateSpeechBubblePos();
+        }
+
+        function updateSpeechBubblePos() {
+            const cx = ariaX + ariaW / 2;
+            const cy = ariaY + ariaH / 2;
+            const sw = 210, sh = 70;
+
+            let bx, by;
+            const margin = 14;
+            const tail = document.getElementById('sb-tail');
+
+            if (cx > window.innerWidth * 0.6) {
+                bx = ariaX - sw - margin;
+                by = cy - sh / 2;
+                tail.style.cssText = 'right:-7px;top:50%;transform:translateY(-50%);border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:8px solid var(--ink);border-right:none;';
+            } else {
+                bx = ariaX + ariaW + margin;
+                by = cy - sh / 2;
+                tail.style.cssText = 'left:-7px;top:50%;transform:translateY(-50%);border-top:6px solid transparent;border-bottom:6px solid transparent;border-right:8px solid var(--ink);border-left:none;';
+            }
+
+            bx = Math.max(8, Math.min(window.innerWidth - sw - 8, bx));
+            by = Math.max(8, Math.min(window.innerHeight - 80, by));
+
+            speechEl.style.left = bx + 'px';
+            speechEl.style.top = by + 'px';
+            speechEl.style.transition = 'opacity 0.35s, transform 0.35s cubic-bezier(0.34,1.56,0.64,1), left 0.6s cubic-bezier(0.34,1.2,0.64,1), top 0.6s cubic-bezier(0.34,1.2,0.64,1)';
+        }
+
+        function ariaSay(text, duration = 3500) {
+            if (speechTimeout) clearTimeout(speechTimeout);
+            speechTxt.textContent = text;
+            speechEl.classList.remove('hidden');
+            updateSpeechBubblePos();
+            speechTimeout = setTimeout(() => {
+                speechEl.classList.add('hidden');
+            }, duration);
+        }
+
+        function emitTrail(x, y) {
+            const colors = ['var(--orange)', 'var(--cream)', 'var(--warm)', 'var(--amber)'];
+            for (let i = 0; i < 3; i++) {
+                const p = document.createElement('div');
+                p.className = 'trail-particle';
+                const sz = 4 + Math.random() * 6;
+                p.style.cssText = `width:${sz}px;height:${sz}px;left:${x + (Math.random() - 0.5) * 30}px;top:${y + (Math.random() - 0.5) * 30}px;background:${colors[Math.floor(Math.random() * colors.length)]};box-shadow:0 0 6px ${colors[0]};animation-delay:${Math.random() * 0.2}s;animation-duration:${0.6 + Math.random() * 0.4}s;`;
+                document.body.appendChild(p);
+                setTimeout(() => p.remove(), 900);
+            }
+        }
+
+        function moveTo(tx, ty, onArrive) {
+            const dx = tx - ariaW / 2;
+            const dy = ty - ariaH / 2;
+
+            beacon.style.left = tx + 'px';
+            beacon.style.top = ty + 'px';
+            beacon.classList.add('show');
+
+            isMoving = true;
+            const trailInterval = setInterval(() => {
+                const c = getAriaCenter();
+                emitTrail(c.x, c.y);
+            }, 100);
+
+            setAriaPos(dx, dy, true);
+
+            setTimeout(() => {
+                clearInterval(trailInterval);
+                beacon.classList.remove('show');
+                isMoving = false;
+                if (onArrive) onArrive();
+            }, 800);
+        }
+
+        function moveAwayFrom(rect) {
+            const margin = 20;
+            const cx = ariaX + ariaW / 2;
+            const cy = ariaY + ariaH / 2;
+
+            const overlap = !(ariaX + ariaW + margin < rect.x || ariaX - margin > rect.x + rect.w ||
+                ariaY + ariaH + margin < rect.y || ariaY - margin > rect.y + rect.h);
+
+            if (!overlap && !isDragging) return;
+
+            const options = [
+                { x: rect.x - ariaW - margin * 2, y: cy - ariaH / 2 },
+                { x: rect.x + rect.w + margin, y: cy - ariaH / 2 },
+                { x: cx - ariaW / 2, y: rect.y - ariaH - margin * 2 },
+                { x: cx - ariaW / 2, y: rect.y + rect.h + margin },
+            ];
+
+            for (const opt of options) {
+                const ox = Math.max(10, Math.min(window.innerWidth - ariaW - 10, opt.x));
+                const oy = Math.max(10, Math.min(window.innerHeight - ariaH - 10, opt.y));
+                const newOverlap = !(ox + ariaW + 10 < rect.x || ox - 10 > rect.x + rect.w ||
+                    oy + ariaH + 10 < rect.y || oy - 10 > rect.y + rect.h);
+                if (!newOverlap) {
+                    moveTo(ox + ariaW / 2, oy + ariaH / 2);
+                    return;
+                }
+            }
+
+            const corners = [
+                { x: 20, y: 20 },
+                { x: window.innerWidth - ariaW - 20, y: 20 },
+                { x: 20, y: window.innerHeight - ariaH - 80 },
+                { x: window.innerWidth - ariaW - 20, y: window.innerHeight - ariaH - 80 },
+            ];
+            const best = corners.reduce((a, b) => {
+                const da = Math.abs(a.x - ariaX) + Math.abs(a.y - ariaY);
+                const db = Math.abs(b.x - ariaX) + Math.abs(b.y - ariaY);
+                return da < db ? a : b;
+            });
+            moveTo(best.x + ariaW / 2, best.y + ariaH / 2);
+        }
+
+        function visitElement(elementId, onArrive) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            const rect = el.getBoundingClientRect();
+            const tx = rect.left + rect.width / 2;
+            const ty = rect.top + rect.height / 2;
+            moveTo(tx, ty, onArrive);
+        }
+
+        // Idle float animation
+        let floatPhase = 0;
+        function startIdleFloat() {
+            if (floatAnimId) cancelAnimationFrame(floatAnimId);
+            function loop() {
+                if (!isDragging && !isMoving) {
+                    floatPhase += 0.008;
+                    const dx = Math.sin(floatPhase) * 4;
+                    const dy = Math.cos(floatPhase * 1.3) * 5;
+                    spirit.style.transform = `translate(${dx}px, ${dy}px)`;
+                }
+                floatAnimId = requestAnimationFrame(loop);
+            }
+            loop();
+        }
+        startIdleFloat();
+
+        // ── DRAG ──
+        spirit.addEventListener('mousedown', e => {
+            if (e.button !== 0) return;
+            isDragging = true;
+            spirit.classList.add('dragging');
+            const r = spirit.getBoundingClientRect();
+            dragOffX = e.clientX - r.left;
+            dragOffY = e.clientY - r.top;
+            spirit.style.transform = 'scale(1.1)';
+            ARIA.setState('surprised');
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            const nx = e.clientX - dragOffX;
+            const ny = e.clientY - dragOffY;
+            ariaX = Math.max(10, Math.min(window.innerWidth - ariaW - 10, nx));
+            ariaY = Math.max(10, Math.min(window.innerHeight - ariaH - 10, ny));
+            spirit.style.transition = 'none';
+            spirit.style.left = ariaX + 'px';
+            spirit.style.top = ariaY + 'px';
+            spirit.style.transform = `scale(1.08)`;
+            updateSpeechBubblePos();
+            emitTrail(ariaX + ariaW / 2, ariaY + ariaH / 2);
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (!isDragging) return;
+            isDragging = false;
+            spirit.classList.remove('dragging');
+            spirit.style.transform = '';
+            ARIA.setState('idle');
+            ariaSay('Put me down~ ✦', 2000);
+            startIdleFloat();
+        });
+
+        // Click ARIA
+        spirit.addEventListener('click', e => {
+            if (Math.abs(e.movementX) + Math.abs(e.movementY) > 3) return;
+            const pokes = ['Hey, stop poking! ▶', 'That tickles!', 'What are you doing? ◈', 'One more poke and I quit!', 'Okay fine, poke away~', 'I\'m thinking about your question...'];
+            ariaSay(pokes[Math.floor(Math.random() * pokes.length)], 2500);
+            ARIA.setState('surprised');
+            const bs = document.getElementById('sp-body');
+            bs.style.animation = 'bodyShake 0.5s ease';
+            setTimeout(() => { bs.style.animation = ''; ARIA.setState('idle'); }, 600);
+            toast('Stop poking ARIA! ◈', 'info');
+        });
+
+        // ════════════════════════════════════════════════
+        // ARIA EMOTION STATE MACHINE
+        // ════════════════════════════════════════════════
+        const ARIA = {
+            state: 'idle',
+            idlePhrases: ['Hello! I\'m ARIA ◈', 'Standing by ~', 'Ask me anything!', 'Studying the knowledge base...', 'All systems nominal ✓', 'Ready for your next mission', 'I can fly anywhere~ ▶'],
+
+            setState(s) {
+                this.state = s;
+                const eL = document.getElementById('sp-eL'), eR = document.getElementById('sp-eR');
+                const smile = document.getElementById('sp-smile');
+                const talkBars = document.getElementById('sp-talkbars');
+                const thinkDots = document.getElementById('sp-thinkdots');
+                const body = document.getElementById('sp-body');
+                const etip = document.getElementById('sp-ant-tip');
+
+                eL.className = 'sp-eye'; eR.className = 'sp-eye';
+                smile.style.display = ''; talkBars.style.display = 'none'; thinkDots.style.display = 'none';
+                smile.style.width = '20px'; smile.style.borderBottom = '2.5px solid rgba(240,232,216,0.8)';
+                smile.style.borderRadius = '0 0 10px 10px'; smile.style.border = 'none';
+
+                switch (s) {
+                    case 'idle':
+                        body.style.animation = '';
+                        body.style.boxShadow = '0 0 28px rgba(212,82,26,0.4),0 0 60px rgba(212,82,26,0.15),inset 0 -10px 26px rgba(0,0,0,0.25),inset 0 5px 15px rgba(255,255,255,0.2)';
+                        etip.style.background = 'var(--orange)'; etip.style.boxShadow = '0 0 10px var(--orange)';
+                        break;
+                    case 'thinking':
+                        eL.className = 'sp-eye thinking'; eR.className = 'sp-eye thinking';
+                        smile.style.display = 'none'; thinkDots.style.display = 'flex';
+                        body.style.animation = 'bodyThink 1.5s ease-in-out infinite';
+                        body.style.boxShadow = '0 0 28px rgba(200,66,10,0.5),0 0 60px rgba(200,66,10,0.25),inset 0 -10px 26px rgba(0,0,0,0.25),inset 0 5px 15px rgba(255,255,255,0.2)';
+                        etip.style.background = 'var(--amber)'; etip.style.boxShadow = '0 0 10px var(--amber)';
+                        break;
+                    case 'talking':
+                        eL.className = 'sp-eye talking'; eR.className = 'sp-eye talking';
+                        smile.style.display = 'none'; talkBars.style.display = 'flex';
+                        body.style.animation = 'bodyTalk 0.4s ease-in-out infinite';
+                        body.style.boxShadow = '0 0 35px rgba(212,82,26,0.55),0 0 70px rgba(212,82,26,0.2),inset 0 -10px 26px rgba(0,0,0,0.25),inset 0 5px 15px rgba(255,255,255,0.2)';
+                        etip.style.background = 'var(--cream)'; etip.style.boxShadow = '0 0 14px var(--cream)';
+                        break;
+                    case 'happy':
+                        eL.className = 'sp-eye happy'; eR.className = 'sp-eye happy';
+                        smile.style.width = '28px'; smile.style.borderBottom = '3px solid rgba(58,122,58,0.8)';
+                        body.style.animation = 'bodyHappy 0.6s ease-in-out 3';
+                        body.style.boxShadow = '0 0 40px rgba(58,122,58,0.45),0 0 80px rgba(58,122,58,0.15),inset 0 -10px 26px rgba(0,0,0,0.25),inset 0 5px 15px rgba(255,255,255,0.2)';
+                        etip.style.background = '#3a7a3a'; etip.style.boxShadow = '0 0 12px #3a7a3a';
+                        setTimeout(() => this.setState('idle'), 2200);
+                        break;
+                    case 'surprised':
+                        eL.className = 'sp-eye'; eR.className = 'sp-eye';
+                        eL.style.transform = 'scale(1.4)'; eR.style.transform = 'scale(1.4)';
+                        setTimeout(() => { eL.style.transform = ''; eR.style.transform = ''; }, 400);
+                        smile.style.width = '12px'; smile.style.height = '12px';
+                        smile.style.borderRadius = '50%'; smile.style.border = '2px solid rgba(240,232,216,0.8)';
+                        smile.style.borderBottom = '2px solid rgba(240,232,216,0.8)';
+                        body.style.animation = 'bodyShake 0.5s ease';
+                        body.style.boxShadow = '0 0 35px rgba(160,144,112,0.45),0 0 70px rgba(160,144,112,0.15),inset 0 -10px 26px rgba(0,0,0,0.25),inset 0 5px 15px rgba(255,255,255,0.2)';
+                        setTimeout(() => { body.style.animation = ''; this.setState('idle'); }, 600);
+                        break;
+                }
+            },
+
+            startIdle() {
+                if (idleTimer) clearInterval(idleTimer);
+                idleTimer = setInterval(() => {
+                    if (this.state === 'idle' && !isDragging) {
+                        ariaSay(this.idlePhrases[Math.floor(Math.random() * this.idlePhrases.length)], 3000);
+                    }
+                }, 6000 + Math.random() * 4000);
+            }
+        };
+
+        // Auto blink
+        setInterval(() => {
+            if (ARIA.state === 'idle' || ARIA.state === 'happy') {
+                document.querySelectorAll('.sp-eye').forEach(e => {
+                    const prev = e.className;
+                    e.classList.add('blink');
+                    setTimeout(() => { e.className = prev; }, 140);
+                });
+            }
+        }, 3200 + Math.random() * 1500);
+
+        ARIA.setState('idle');
+        ARIA.startIdle();
+
+        // Initial greeting
+        setTimeout(() => {
+            ariaSay('Hello! I\'m ARIA. You can drag me around! ◈', 4000);
+            setTimeout(() => doFeatureTour(), 5000);
+        }, 1000);
+
+        // ─── FEATURE TOUR ───
+        const tourSteps = [
+            {
+                target: () => { return { x: window.innerWidth * 0.15, y: window.innerHeight * 0.15 }; },
+                elementId: 'sidebar',
+                speech: 'This is the chat area, ask me anything ▶',
+                state: 'talking'
+            },
+            {
+                target: () => { return { x: window.innerWidth * 0.25, y: window.innerHeight * 0.45 }; },
+                elementId: 'conv-list',
+                speech: 'Conversation history on the left ◈',
+                state: 'talking'
+            },
+            {
+                target: () => { return { x: window.innerWidth * 0.5, y: window.innerHeight * 0.85 }; },
+                elementId: 'send-btn',
+                speech: 'Type your question here, press Enter to send ▶',
+                state: 'talking'
+            },
+            {
+                target: () => { return { x: window.innerWidth - 170, y: window.innerHeight - 220 }; },
+                elementId: null,
+                speech: 'Tour complete! I\'ll be right here ◈',
+                state: 'happy'
+            }
+        ];
+
+        let tourActive = false;
+        function doFeatureTour() {
+            if (tourActive || isDragging) return;
+            tourActive = true;
+            let step = 0;
+
+            function nextStep() {
+                if (step >= tourSteps.length) { tourActive = false; return; }
+                const s = tourSteps[step++];
+                const t = s.target();
+                ARIA.setState('thinking');
+
+                moveTo(t.x, t.y, () => {
+                    ARIA.setState(s.state);
+                    ariaSay(s.speech, 2800);
+                    setTimeout(nextStep, 3200);
+                });
+            }
+            nextStep();
+        }
+
+        // ─── NAV ───
+        document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.getElementById('page-' + btn.dataset.page).classList.add('active');
+                if (btn.dataset.page === 'dash') loadDash();
+                if (btn.dataset.page === 'kb') loadKB();
+
+                // ARIA reacts
+                const reactions = {
+                    chat: { speech: 'Let\'s chat! ▶', state: 'happy', tx: () => window.innerWidth - 150, ty: () => window.innerHeight - 160 },
+                    kb: { speech: 'Knowledge base management! ◈', state: 'thinking', tx: () => window.innerWidth * 0.75, ty: () => window.innerHeight * 0.35 },
+                    dash: { speech: 'Loading data dashboard... ◉', state: 'thinking', tx: () => window.innerWidth * 0.65, ty: () => window.innerHeight * 0.2 },
+                };
+                const r = reactions[btn.dataset.page];
+                if (r && !isDragging) {
+                    ARIA.setState(r.state);
+                    ariaSay(r.speech, 3000);
+                    setTimeout(() => {
+                        moveTo(r.tx(), r.ty(), () => {
+                            if (btn.dataset.page === 'dash') ARIA.setState('happy');
+                        });
+                    }, 300);
+                }
+            });
+        });
+
+        // ─── CHAT ───
+        const state = {
+            convs: [], curId: null, msgs: {},
+            kbs: [{ id: 'kb1', name: '产品手册库', cnt: 8 }, { id: 'kb2', name: 'API 文档库', cnt: 12 }, { id: 'kb3', name: '业务规范库', cnt: 4 }],
+            docs: {
+                kb1: [{ id: 'd1', name: '用户操作手册v2.3.pdf', size: '2.4MB', type: 'pdf', status: 'ready' },
+                { id: 'd2', name: '快速入门指南.docx', size: '856KB', type: 'word', status: 'ready' },
+                { id: 'd3', name: '功能更新说明.txt', size: '124KB', type: 'txt', status: 'processing' }],
+                kb2: [{ id: 'd4', name: 'REST API参考文档.pdf', size: '4.1MB', type: 'pdf', status: 'ready' },
+                { id: 'd5', name: 'Webhook列表.xlsx', size: '312KB', type: 'excel', status: 'failed' }],
+                kb3: [{ id: 'd6', name: '数据合规规范.pdf', size: '1.8MB', type: 'pdf', status: 'ready' },
+                { id: 'd7', name: '隐私政策.docx', size: '445KB', type: 'word', status: 'processing' }]
+            },
+            selKb: null,
+            isStreaming: false,
+            getMsgs() { return this.msgs[this.curId] || []; },
+            addMsg(m) { if (!this.msgs[this.curId]) this.msgs[this.curId] = []; this.msgs[this.curId].push(m); }
+        };
+
+        function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+
+        function renderConvs() {
+            const el = document.getElementById('conv-list');
+            el.innerHTML = '';
+            if (!state.convs.length) { el.innerHTML = '<div style="padding:16px 10px;font-family:\'IBM Plex Mono\',monospace;font-size:10px;color:var(--dim)">No conversations yet.</div>'; return; }
+            state.convs.forEach(c => {
+                const d = document.createElement('div');
+                d.className = `c-item ${c.id === state.curId ? 'active' : ''}`;
+                d.innerHTML = `<div class="c-title">${c.title}</div><div class="c-time">${c.time}</div>`;
+                d.addEventListener('click', () => { state.curId = c.id; renderConvs(); renderMsgs(); });
+                el.appendChild(d);
+            });
+        }
+
+        function newConv() {
+            const c = { id: genId(), title: 'New Conversation', time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) };
+            state.convs.unshift(c); state.curId = c.id; state.msgs[c.id] = [];
+            renderConvs(); renderMsgs();
+            ARIA.setState('happy'); ariaSay('New conversation started! ▶', 2000);
+            if (!isDragging) moveTo(window.innerWidth - 80, 80);
+        }
+
+        document.getElementById('new-conv-btn').addEventListener('click', newConv);
+
+        function renderMsgs() {
+            const el = document.getElementById('msgs');
+            const ms = state.getMsgs();
+            if (!ms.length) {
+                el.innerHTML = `<div id="empty-s">
+      <div class="launch-graphic">
+        <div class="lg-circle"></div><div class="lg-circle"></div><div class="lg-circle"></div>
+        <div class="lg-shuttle">🚀</div>
+      </div>
+      <div class="empty-title">Ready for launch</div>
+      <div class="empty-sub">THE UNIVERSE IS WIDER THAN OUR VIEWS OF IT.<br>ASK NEXUS ANYTHING.</div>
+      <div class="q-chips" id="q-chips">
+        <div class="q-chip" data-q="分析近7天用户趋势">▶ 分析近7天用户趋势</div>
+        <div class="q-chip" data-q="查看资金余额状态">▶ 查看资金余额状态</div>
+        <div class="q-chip" data-q="知识库里有哪些文档？">▶ 知识库文档列表</div>
+        <div class="q-chip" data-q="帮我分析业务数据">▶ 帮我分析业务数据</div>
+      </div>
+    </div>`;
+                setupChips(); return;
+            }
+            el.innerHTML = '';
+            ms.forEach(m => appendMsg(m, false));
+            el.scrollTop = 99999;
+        }
+
+        function appendMsg(msg, animate = true) {
+            const el = document.getElementById('msgs');
+            document.getElementById('empty-s')?.remove();
+            const row = document.createElement('div');
+            row.className = `m-row ${msg.role}`;
+            if (!animate) row.style.animation = 'none';
+
+            let srcH = '', confH = '';
+            if (msg.sources?.length) srcH = msg.sources.map(s => `<div class="stag">${s}</div>`).join('');
+            if (msg.conf != null) confH = `<div class="conf-row"><div class="conf-track"><div class="conf-fill" style="width:0" id="cf-${msg.id}"></div></div><div class="conf-txt">${Math.round(msg.conf * 100)}%</div></div>`;
+
+            const av = msg.role === 'ai' ? `<div class="m-av ai">AI</div>` : `<div class="m-av">ME</div>`;
+            row.innerHTML = `${msg.role === 'ai' ? av : ''}
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <div class="m-bub ${msg.role}" id="b-${msg.id}">${msg.content || ''}</div>
+      ${msg.hasChart ? `<div class="inline-chart" id="ic-${msg.id}"></div>` : ''}
+      ${srcH || confH ? `<div class="m-foot">${srcH}${confH}</div>` : ''}
+    </div>
+    ${msg.role === 'user' ? av : ''}`;
+            el.appendChild(row); el.scrollTop = 99999;
+            if (msg.conf != null) setTimeout(() => { const f = document.getElementById('cf-' + msg.id); if (f) f.style.width = Math.round(msg.conf * 100) + '%'; }, 300);
+            if (msg.hasChart) setTimeout(() => renderIChart(msg.id), 100);
+        }
+
+        function renderIChart(id) {
+            const el = document.getElementById('ic-' + id);
+            if (!el) return;
+            const ch = echarts.init(el);
+            const days = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+            const data = days.map(() => Math.floor(Math.random() * 800 + 200));
+            ch.setOption({
+                backgroundColor: 'transparent',
+                grid: { top: 15, bottom: 22, left: 36, right: 8 },
+                xAxis: { type: 'category', data: days, axisLine: { lineStyle: { color: 'rgba(26,20,8,0.3)' } }, axisLabel: { color: 'var(--mid)', fontSize: 10 } },
+                yAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(26,20,8,0.1)' } }, axisLabel: { color: 'var(--mid)', fontSize: 10 } },
+                series: [{ type: 'line', data, smooth: false, lineStyle: { color: 'var(--orange)', width: 2 }, itemStyle: { color: 'var(--orange)' }, areaStyle: { color: 'rgba(212,82,26,0.08)' }, symbol: 'rect', symbolSize: 6 }],
+                tooltip: { trigger: 'axis', backgroundColor: 'var(--cream)', borderColor: 'var(--orange)', textStyle: { color: 'var(--ink)', fontSize: 11, fontFamily: 'IBM Plex Mono' } }
+            });
+        }
+
+        function setupChips() {
+            document.querySelectorAll('.q-chip').forEach(c => {
+                c.addEventListener('click', () => sendMsg(c.dataset.q));
+            });
+        }
+
+        // Detect input focus to move ARIA away
+        const taEl = document.getElementById('chat-ta');
+        taEl.addEventListener('focus', () => {
+            const rect = document.querySelector('.chat-input-zone').getBoundingClientRect();
+            moveAwayFrom({ x: rect.left, y: rect.top, w: rect.width, h: rect.height });
+        });
+
+        async function sendMsg(text) {
+            if (!text.trim() || state.isStreaming) return;
+            if (!state.curId) newConv();
+            const uMsg = { id: genId(), role: 'user', content: text };
+            state.addMsg(uMsg); appendMsg(uMsg);
+            const conv = state.convs.find(c => c.id === state.curId);
+            if (conv && conv.title === 'New Conversation') conv.title = text.slice(0, 22) + (text.length > 22 ? '…' : '');
+            renderConvs();
+            state.isStreaming = true; aiThink = true;
+
+            // ARIA reacts
+            if (!isDragging) {
+                ARIA.setState('thinking');
+                ariaSay(['Let me think...', 'Querying knowledge base...', 'Processing, hold on ⚡'][Math.floor(Math.random() * 3)], 99999);
+                moveTo(window.innerWidth - 100, 100);
+            }
+
+            // typing
+            const typo = document.createElement('div');
+            typo.className = 'm-row ai';
+            typo.innerHTML = `<div class="m-av ai">AI</div><div><div class="m-bub ai"><div class="t-bub"><div class="t-d"></div><div class="t-d"></div><div class="t-d"></div></div></div></div>`;
+            document.getElementById('msgs').appendChild(typo);
+            document.getElementById('msgs').scrollTop = 99999;
+
+            await new Promise(r => setTimeout(r, 400));
+            typo.remove(); aiThink = false;
+
+            const aMsg = { id: genId(), role: 'ai', content: '', sources: [], conf: 0, hasChart: false };
+            state.addMsg(aMsg); appendMsg(aMsg);
+
+            // ARIA talking
+            if (!isDragging) {
+                ARIA.setState('talking');
+                const msgArea = document.getElementById('msgs').getBoundingClientRect();
+                moveTo(msgArea.right + 60, msgArea.top + 60, () => {
+                    ariaSay(['Found the answer!', 'According to the knowledge base...', 'Here is my analysis:'][Math.floor(Math.random() * 3)], 99999);
+                });
+            }
+
+            const bub = document.getElementById('b-' + aMsg.id);
+
+            // Try real API first, fallback to demo
+            if (USE_REAL_API) {
+                const apiResp = await callRealAPI(text);
+                if (apiResp && apiResp.body) {
+                    // SSE streaming from real backend
+                    const reader = apiResp.body.getReader();
+                    const decoder = new TextDecoder();
+                    let fullContent = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        const chunk = decoder.decode(value);
+                        const lines = chunk.split('\n');
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                try {
+                                    const data = JSON.parse(line.slice(6));
+                                    if (data.done) continue;
+                                    if (data.node && data.data) {
+                                        if (data.data.answer) fullContent = data.data.answer;
+                                        if (data.data.sources) aMsg.sources = data.data.sources.map(s => s.name || s);
+                                        if (data.data.confidence) aMsg.conf = data.data.confidence;
+                                        if (data.data.chart) aMsg.hasChart = true;
+                                    }
+                                    aMsg.content = fullContent || `Processing: ${data.node}...`;
+                                    bub.textContent = aMsg.content;
+                                    document.getElementById('msgs').scrollTop = 99999;
+                                } catch (e) {}
+                            }
+                        }
+                    }
+
+                    state.isStreaming = false;
+                    ARIA.setState('happy');
+                    ariaSay('Done! Any more questions? ◈', 3000);
+                    if (!isDragging) setTimeout(() => moveTo(window.innerWidth - 100, window.innerHeight - 180), 1000);
+                    return;
+                }
+            }
+
+            // Fallback: demo data with typewriter effect
+            const resp = getDemoResp(text);
+            aMsg.sources = resp.sources; aMsg.conf = resp.conf; aMsg.hasChart = resp.hasChart;
+            let i = 0;
+            const iv = setInterval(() => {
+                if (i >= resp.text.length) {
+                    clearInterval(iv); state.isStreaming = false;
+                    if (speechTimeout) clearTimeout(speechTimeout);
+                    ARIA.setState('happy');
+                    ariaSay('Done! Any more questions? ◈', 3000);
+                    if (!isDragging) setTimeout(() => moveTo(window.innerWidth - 100, window.innerHeight - 180), 1000);
+                    return;
+                }
+                aMsg.content += resp.text.slice(i, i + Math.floor(Math.random() * 3) + 1);
+                bub.textContent = aMsg.content; i += 3;
+                document.getElementById('msgs').scrollTop = 99999;
+            }, 22);
+        }
+
+        // ─── API Configuration ───
+        const API_BASE = window.API_BASE || 'http://localhost:8000/api/v1';
+        const USE_REAL_API = true; // Set false to use demo data
+
+        // Demo fallback data (when backend is not running)
+        function getDemoResp(q) {
+            const hasChart = /趋势|分析|数据/.test(q);
+            const pool = [
+                { text: '根据系统数据，近7天用户趋势呈现稳步上升态势。日活跃用户从周一342人增长至周日518人，环比增长51.5%。新注册用户主要集中在工作日，周三和周四为峰值期，建议在高峰时段增加服务器资源分配。', sources: ['API:/system/overview', 'DOC:用户手册'], conf: 0.93, hasChart },
+                { text: '系统当前资金余额 ¥12,480，按近7天日均消耗 ¥186.34 计算，预计可运行 66.9 天。消耗分布：AI推理调用68%、向量存储19%、其他13%。建议余额低于 ¥3,000 时触发充值提醒。', sources: ['API:/finance/balance'], conf: 0.97, hasChart: false },
+                { text: '知识库共3个集合，含24个文档片段：产品手册12份、API文档7份、业务规范5份。所有文档已完成向量化处理，最近更新于2小时前，可进行语义检索。', sources: ['KB:产品手册', 'KB:API文档'], conf: 0.91, hasChart: false },
+                { text: '系统全部核心服务运行正常。API响应平均延迟142ms，P95延迟380ms。向量检索QPS当前24.6，LLM推理队列长度0，无积压。GPU显存使用率71%，接近预警阈值80%，请关注。', sources: ['API:/health', 'Monitor:Metrics'], conf: 0.99, hasChart: false },
+            ];
+            return pool[Math.floor(Math.random() * pool.length)];
+        }
+
+        // ─── Real API: SSE Streaming QA ───
+        async function callRealAPI(text) {
+            try {
+                const resp = await fetch(`${API_BASE}/qa/stream`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: text }),
+                });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                return resp;
+            } catch (e) {
+                console.warn('API not available, using demo data:', e.message);
+                return null;
+            }
+        }
+
+        // ─── Real API: Health Check ───
+        async function checkBackendHealth() {
+            try {
+                const resp = await fetch(`${API_BASE}/health`);
+                if (resp.ok) {
+                    document.querySelector('.status-box').innerHTML = '● ONLINE (API Connected)';
+                    document.querySelector('.status-box').style.color = '#22c55e';
+                    return true;
+                }
+            } catch (e) {}
+            document.querySelector('.status-box').innerHTML = '● DEMO MODE (API Offline)';
+            document.querySelector('.status-box').style.color = '#f59e0b';
+            return false;
+        }
+
+        // ─── Real API: Load Dashboard Stats ───
+        async function loadDashboardStats() {
+            try {
+                const resp = await fetch(`${API_BASE}/data/system/overview`);
+                if (!resp.ok) return;
+                const data = await resp.json();
+                const cards = document.getElementById('stat-cards');
+                if (cards && data) {
+                    const statEls = cards.querySelectorAll('.s-val');
+                    if (statEls[0] && data.total_users) statEls[0].textContent = data.total_users.toLocaleString();
+                    if (statEls[1] && data.active_users) statEls[1].textContent = data.active_users.toLocaleString();
+                    if (statEls[2] && data.total_funds) statEls[2].textContent = '¥' + (data.total_funds / 10000).toFixed(0) + '万';
+                }
+            } catch (e) { console.log('Stats API not available, using demo data'); }
+        }
+
+        // Check backend on load
+        checkBackendHealth();
+        loadDashboardStats();
+
+        const ta = document.getElementById('chat-ta');
+        ta.addEventListener('input', function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 100) + 'px'; });
+        ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); const t = ta.value.trim(); if (t) { ta.value = ''; ta.style.height = 'auto'; sendMsg(t); } } });
+        document.getElementById('send-btn').addEventListener('click', () => { const t = ta.value.trim(); if (t) { ta.value = ''; ta.style.height = 'auto'; sendMsg(t); } });
+        setupChips(); newConv();
+
+        // ─── KNOWLEDGE BASE ───
+        function loadKB() {
+            const el = document.getElementById('kb-col-list');
+            el.innerHTML = '';
+            state.kbs.forEach((kb, i) => {
+                const row = document.createElement('div');
+                row.className = `kb-row ${i === 0 && !state.selKb ? 'active' : state.selKb === kb.id ? 'active' : ''}`;
+                row.innerHTML = `<div class="kb-row-name">◈ ${kb.name}</div><div class="kb-row-cnt">${kb.cnt} documents</div>`;
+                row.addEventListener('click', () => selKb(kb));
+                el.appendChild(row);
+            });
+            if (!state.selKb) selKb(state.kbs[0]);
+        }
+
+        function selKb(kb) {
+            state.selKb = kb.id;
+            document.querySelectorAll('.kb-row').forEach((r, i) => r.classList.toggle('active', state.kbs[i].id === kb.id));
+            document.getElementById('kb-doc-head').textContent = kb.name;
+            renderDocs(kb.id);
+            ariaSay(`"${kb.name}" ◈`);
+            if (!isDragging) {
+                const uz = document.getElementById('up-zone').getBoundingClientRect();
+                moveTo(uz.right + 70, uz.top + 40);
+            }
+        }
+
+        function renderDocs(kbId) {
+            const el = document.getElementById('docs-list');
+            el.innerHTML = '';
+            const docs = state.docs[kbId] || [];
+            if (!docs.length) { el.innerHTML = '<div style="padding:20px;text-align:center;font-family:\'IBM Plex Mono\',monospace;font-size:11px;color:var(--dim)">No documents yet.</div>'; return; }
+            const icons = { pdf: '📄', word: '📝', excel: '📊', txt: '📃' };
+            docs.forEach(doc => {
+                const r = document.createElement('div');
+                r.className = 'doc-row';
+                r.innerHTML = `<div class="doc-ico">${icons[doc.type] || '📄'}</div>
+      <div class="doc-info"><div class="doc-name">${doc.name}</div><div class="doc-size">${doc.size}</div></div>
+      <div class="status ${doc.status}">${{ ready: 'Ready', processing: 'Processing...', failed: 'Failed' }[doc.status]}</div>
+      <button class="del-btn" onclick="delDoc('${doc.id}','${kbId}')">✕</button>`;
+                el.appendChild(r);
+            });
+        }
+
+        window.delDoc = (docId, kbId) => {
+            if (!state.docs[kbId]) return;
+            state.docs[kbId] = state.docs[kbId].filter(d => d.id !== docId);
+            renderDocs(kbId); toast('Document removed', 'success'); ariaSay('Deleted ✓');
+        };
+
+        document.getElementById('add-kb-btn').addEventListener('click', () => {
+            const ov = document.createElement('div');
+            ov.className = 'm-overlay';
+            ov.innerHTML = `<div class="m-box"><div class="m-title">NEW COLLECTION</div><input class="m-input" id="nkb-inp" placeholder="Enter collection name..."><div class="m-acts"><button class="m-cancel" id="nkb-cancel">Cancel</button><button class="m-confirm" id="nkb-ok">Create</button></div></div>`;
+            document.body.appendChild(ov);
+            document.getElementById('nkb-inp').focus();
+            document.getElementById('nkb-cancel').addEventListener('click', () => ov.remove());
+            document.getElementById('nkb-ok').addEventListener('click', () => {
+                const name = document.getElementById('nkb-inp').value.trim();
+                if (!name) return toast('Enter a name', 'error');
+                const kb = { id: genId(), name, cnt: 0 };
+                state.kbs.push(kb); state.docs[kb.id] = [];
+                ov.remove(); loadKB(); selKb(kb); toast(`"${name}" created`, 'success');
+                ARIA.setState('happy'); ariaSay(`"${name}" created! ▶`, 2500);
+            });
+            ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+        });
+
+        const upZone = document.getElementById('up-zone');
+        const fileInp = document.getElementById('file-inp');
+        document.getElementById('up-trig').addEventListener('click', () => fileInp.click());
+        upZone.addEventListener('click', () => fileInp.click());
+        upZone.addEventListener('dragover', e => { e.preventDefault(); upZone.style.borderColor = 'var(--orange)'; });
+        upZone.addEventListener('dragleave', () => upZone.style.borderColor = '');
+        upZone.addEventListener('drop', e => { e.preventDefault(); upZone.style.borderColor = ''; handleFiles(e.dataTransfer.files); });
+        fileInp.addEventListener('change', e => handleFiles(e.target.files));
+
+        function handleFiles(files) {
+            if (!state.selKb) return toast('Select a collection first', 'error');
+            Array.from(files).forEach(file => {
+                const ext = file.name.split('.').pop().toLowerCase();
+                const tm = { pdf: 'pdf', doc: 'word', docx: 'word', xlsx: 'excel', xls: 'excel', txt: 'txt' };
+                const doc = { id: genId(), name: file.name, size: file.size > 1048576 ? `${(file.size / 1048576).toFixed(1)}MB` : `${Math.round(file.size / 1024)}KB`, type: tm[ext] || 'txt', status: 'processing' };
+                state.docs[state.selKb].push(doc);
+                const kb = state.kbs.find(k => k.id === state.selKb); if (kb) kb.cnt++;
+                ARIA.setState('thinking'); ariaSay(`Processing "${file.name.slice(0, 12)}..." ⚡`, 99999);
+                toast(`Processing: ${file.name}`, 'info');
+                renderDocs(state.selKb);
+                setTimeout(() => {
+                    doc.status = Math.random() > 0.1 ? 'ready' : 'failed'; renderDocs(state.selKb);
+                    if (doc.status === 'ready') { toast(`${file.name}: Ready ✓`, 'success'); ARIA.setState('happy'); ariaSay('Document processed! ◈', 2500); }
+                    else { toast(`${file.name}: Failed ✕`, 'error'); ariaSay('Processing failed...', 2500); ARIA.setState('idle'); }
+                }, 2000 + Math.random() * 2000);
+            });
+        }
+
+        document.getElementById('sem-btn').addEventListener('click', () => {
+            const q = document.getElementById('sem-inp').value.trim();
+            if (!q) return;
+            const el = document.getElementById('sem-res');
+            el.innerHTML = `<div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dim)">Searching...</div>`;
+            ARIA.setState('thinking'); ariaSay('Semantic matching...', 99999);
+            const si = document.getElementById('sem-inp').getBoundingClientRect();
+            if (!isDragging) moveTo(si.left - 80, si.top);
+            setTimeout(() => {
+                el.innerHTML = `<div class="search-res">
+▶ <strong>用户操作手册v2.3.pdf</strong> [Match: 94%]<br>
+  系统支持账号密码、SSO 单点登录和 OAuth 授权...<br><br>
+▶ <strong>REST API参考文档.pdf</strong> [Match: 81%]<br>
+  所有 API 请求需在 Header 中携带 Authorization token...
+</div>`;
+                ARIA.setState('happy'); ariaSay('Found matching documents! ◈', 2500);
+            }, 800);
+        });
+
+        // ─── DASHBOARD ───
+        function loadDash() {
+            const targets = { users: 12847, active: 3241, balance: 12480, days: 67 };
+            const changes = { users: '+8.3% vs yesterday', active: '+12.1% vs yesterday', balance: '-¥186/day', days: 'At current spend' };
+            const ids = { users: 's-users', active: 's-active', balance: 's-balance', days: 's-days' };
+            const cids = { users: 's-users-c', active: 's-active-c', balance: 's-balance-c', days: 's-days-c' };
+            Object.keys(targets).forEach(k => {
+                let cur = 0; const step = targets[k] / 40;
+                const iv = setInterval(() => {
+                    cur = Math.min(cur + step, targets[k]);
+                    document.getElementById(ids[k]).textContent = k === 'balance' ? '¥' + Math.round(cur).toLocaleString() : Math.round(cur).toLocaleString();
+                    if (cur >= targets[k]) { clearInterval(iv); document.getElementById(cids[k]).textContent = changes[k]; }
+                }, 30);
+            });
+            initCharts();
+
+            // ARIA tours dashboard
+            setTimeout(() => {
+                if (!isDragging) {
+                    ARIA.setState('happy'); ariaSay('Data loaded! All systems nominal ◈', 2500);
+                }
+            }, 800);
+        }
+
+        function initCharts() {
+            const days = ['3/21', '3/22', '3/23', '3/24', '3/25', '3/26', '3/27'];
+            const cOpts = {
+                backgroundColor: 'transparent',
+                grid: { top: 16, bottom: 28, left: 42, right: 10 },
+                tooltip: { trigger: 'axis', backgroundColor: 'var(--cream)', borderColor: 'var(--orange)', borderWidth: 2, textStyle: { color: 'var(--ink)', fontSize: 11, fontFamily: 'IBM Plex Mono' } },
+            };
+            const u = echarts.init(document.getElementById('ch-users'));
+            u.setOption({
+                ...cOpts,
+                xAxis: { type: 'category', data: days, axisLine: { lineStyle: { color: 'rgba(26,20,8,0.3)' } }, axisLabel: { color: 'var(--mid)', fontSize: 11, fontFamily: 'IBM Plex Mono' } },
+                yAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(26,20,8,0.1)', type: 'dashed' } }, axisLabel: { color: 'var(--mid)', fontSize: 11, fontFamily: 'IBM Plex Mono' } },
+                series: [{ type: 'line', data: [11203, 11580, 11942, 12100, 12388, 12601, 12847], symbol: 'rect', symbolSize: 7, lineStyle: { color: 'var(--orange)', width: 2 }, itemStyle: { color: 'var(--orange)' }, areaStyle: { color: 'rgba(212,82,26,0.07)' } }]
+            });
+            const co = echarts.init(document.getElementById('ch-cost'));
+            co.setOption({
+                ...cOpts,
+                xAxis: { type: 'category', data: days, axisLine: { lineStyle: { color: 'rgba(26,20,8,0.3)' } }, axisLabel: { color: 'var(--mid)', fontSize: 11, fontFamily: 'IBM Plex Mono' } },
+                yAxis: { type: 'value', axisLabel: { color: 'var(--mid)', fontSize: 11, fontFamily: 'IBM Plex Mono', formatter: '¥{value}' }, splitLine: { lineStyle: { color: 'rgba(26,20,8,0.1)', type: 'dashed' } } },
+                series: [{ type: 'bar', data: [142, 178, 203, 167, 195, 221, 186], itemStyle: { color: 'rgba(26,20,8,0.7)', borderRadius: [3, 3, 0, 0] }, emphasis: { itemStyle: { color: 'var(--orange)' } }, barWidth: '55%' }]
+            });
+        }
+
+        document.getElementById('ref-btn').addEventListener('click', () => {
+            toast('Refreshing data...', 'info');
+            ARIA.setState('thinking'); ariaSay('Refreshing, hold on...', 99999);
+            setTimeout(() => { loadDash(); toast('Data updated ✓', 'success'); }, 800);
+        });
+    </script>
+</body>
+
+</html>

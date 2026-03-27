@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Database
+*.sqlite
+*.db
+
+# Runtime data
+backend/data/
+data/
+
+# Logs
+*.log
+log/
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+.claude/
+
+# Cache
+.pytest_cache/
+.coverage
+htmlcov/
+.vercel/
+
+# OS
+.DS_Store
+Thumbs.db

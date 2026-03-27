@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VRM Bot Preview</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a0f;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+        }
+        #canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+        }
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: 1px solid rgba(255,255,255,0.15);
+            background: rgba(255,255,255,0.05);
+            color: #e0e0e0;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 13px;
+            backdrop-filter: blur(10px);
+            transition: all 0.2s;
+        }
+        .btn:hover {
+            background: rgba(99, 102, 241, 0.2);
+            border-color: rgba(99, 102, 241, 0.4);
+        }
+        .btn.active {
+            background: rgba(99, 102, 241, 0.3);
+            border-color: rgba(99, 102, 241, 0.6);
+            color: #a5b4fc;
+        }
+        .status {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            padding: 8px 20px;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            font-size: 12px;
+            backdrop-filter: blur(10px);
+        }
+        .speech-bubble {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            padding: 12px 24px;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 16px;
+            font-size: 14px;
+            max-width: 400px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .speech-bubble.show { opacity: 1; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div class="status" id="status">Loading VRM model...</div>
+    <div class="speech-bubble" id="speech"></div>
+
+    <div class="controls">
+        <button class="btn" onclick="setEmotion('neutral')">😐 Neutral</button>
+        <button class="btn" onclick="setEmotion('happy')">😊 Happy</button>
+        <button class="btn" onclick="setEmotion('angry')">😠 Angry</button>
+        <button class="btn" onclick="setEmotion('sad')">😢 Sad</button>
+        <button class="btn" onclick="setEmotion('surprised')">😮 Surprised</button>
+        <button class="btn" onclick="triggerWave()">👋 Wave</button>
+        <button class="btn" onclick="triggerTalk()">💬 Talk</button>
+        <button class="btn" onclick="triggerThink()">🤔 Think</button>
+        <button class="btn" onclick="triggerNod()">👍 Nod</button>
+    </div>
+
+    <!-- Three.js + VRM -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/",
+            "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.3.3/lib/three-vrm.module.min.js"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { VRMLoaderPlugin, VRMUtils, VRMExpressionPresetName } from '@pixiv/three-vrm';
+
+        // ─── Scene Setup ───
+        const canvas = document.getElementById('canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(25, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 1.3, 2.5);
+
+        // Controls
+        const controls = new OrbitControls(camera, canvas);
+        controls.target.set(0, 1.0, 0);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 1;
+        controls.maxDistance = 5;
+        controls.update();
+
+        // ─── Lighting ───
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        mainLight.position.set(2, 3, 2);
+        mainLight.castShadow = true;
+        scene.add(mainLight);
+
+        const fillLight = new THREE.DirectionalLight(0x6366f1, 0.4);
+        fillLight.position.set(-2, 1, -1);
+        scene.add(fillLight);
+
+        const rimLight = new THREE.DirectionalLight(0xa855f7, 0.3);
+        rimLight.position.set(0, 2, -3);
+        scene.add(rimLight);
+
+        // ─── Floor Grid ───
+        const gridHelper = new THREE.GridHelper(10, 20, 0x222244, 0x111133);
+        gridHelper.material.opacity = 0.3;
+        gridHelper.material.transparent = true;
+        scene.add(gridHelper);
+
+        // ─── Load VRM ───
+        let currentVrm = null;
+        const clock = new THREE.Clock();
+        const statusEl = document.getElementById('status');
+        const speechEl = document.getElementById('speech');
+
+        const loader = new GLTFLoader();
+        loader.register((parser) => new VRMLoaderPlugin(parser));
+
+        loader.load(
+            './model.vrm',
+            (gltf) => {
+                const vrm = gltf.userData.vrm;
+                if (!vrm) {
+                    statusEl.textContent = '❌ Not a valid VRM file';
+                    return;
+                }
+
+                VRMUtils.removeUnnecessaryVertices(gltf.scene);
+                VRMUtils.removeUnnecessaryJoints(gltf.scene);
+                vrm.scene.rotation.y = Math.PI;
+                scene.add(vrm.scene);
+                currentVrm = vrm;
+
+                statusEl.textContent = '✅ VRM loaded — Use buttons below to test expressions';
+                say('Hello! I am your AI assistant 🤖');
+
+                console.log('VRM loaded:', vrm);
+                console.log('Available expressions:', vrm.expressionManager?.expressions?.map(e => e.expressionName));
+            },
+            (progress) => {
+                const pct = progress.total > 0 ? Math.round(progress.loaded / progress.total * 100) : 0;
+                statusEl.textContent = `Loading... ${pct}%`;
+            },
+            (error) => {
+                statusEl.textContent = `❌ Load failed: ${error.message}`;
+                console.error(error);
+            }
+        );
+
+        // ─── Expression Control ───
+        let currentEmotion = 'neutral';
+        let blinkTimer = 0;
+        let isBlinking = false;
+        let talkTimer = 0;
+        let isTalking = false;
+        let headBob = { x: 0, y: 0, targetX: 0, targetY: 0 };
+
+        window.setEmotion = function(emotion) {
+            if (!currentVrm) return;
+            currentEmotion = emotion;
+
+            // Reset all expressions
+            const em = currentVrm.expressionManager;
+            if (!em) return;
+
+            em.setValue(VRMExpressionPresetName.Happy, 0);
+            em.setValue(VRMExpressionPresetName.Angry, 0);
+            em.setValue(VRMExpressionPresetName.Sad, 0);
+            em.setValue(VRMExpressionPresetName.Surprised, 0);
+            em.setValue(VRMExpressionPresetName.Relaxed, 0);
+
+            switch(emotion) {
+                case 'happy':
+                    em.setValue(VRMExpressionPresetName.Happy, 1.0);
+                    say('😊 I am happy to help!');
+                    break;
+                case 'angry':
+                    em.setValue(VRMExpressionPresetName.Angry, 1.0);
+                    say('😠 Something seems wrong...');
+                    break;
+                case 'sad':
+                    em.setValue(VRMExpressionPresetName.Sad, 1.0);
+                    say('😢 Oh no...');
+                    break;
+                case 'surprised':
+                    em.setValue(VRMExpressionPresetName.Surprised, 1.0);
+                    say('😮 Wow, interesting!');
+                    break;
+                default:
+                    say('Ready for your questions.');
+            }
+
+            document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+            event?.target?.classList.add('active');
+        };
+
+        window.triggerWave = function() {
+            say('👋 Hi there! Welcome back!');
+            headBob.targetX = 0.15;
+            setTimeout(() => headBob.targetX = -0.15, 300);
+            setTimeout(() => headBob.targetX = 0, 600);
+        };
+
+        window.triggerTalk = function() {
+            isTalking = true;
+            talkTimer = 0;
+            say('Let me analyze the data for you...');
+            if (currentVrm?.expressionManager) {
+                currentVrm.expressionManager.setValue(VRMExpressionPresetName.Happy, 0.3);
+            }
+            setTimeout(() => {
+                isTalking = false;
+                if (currentVrm?.expressionManager) {
+                    currentVrm.expressionManager.setValue(VRMExpressionPresetName.Aa, 0);
+                }
+                say('Analysis complete! ✨');
+            }, 3000);
+        };
+
+        window.triggerThink = function() {
+            say('🤔 Let me think about this...');
+            headBob.targetY = 0.1;
+            setTimeout(() => headBob.targetY = -0.05, 500);
+            setTimeout(() => {
+                headBob.targetY = 0;
+                say('Got it! Here is my answer.');
+            }, 2000);
+        };
+
+        window.triggerNod = function() {
+            say('👍 Understood!');
+            headBob.targetX = -0.1;
+            setTimeout(() => headBob.targetX = 0.1, 200);
+            setTimeout(() => headBob.targetX = -0.08, 400);
+            setTimeout(() => headBob.targetX = 0, 600);
+        };
+
+        function say(text) {
+            speechEl.textContent = text;
+            speechEl.classList.add('show');
+            clearTimeout(window._sayTimer);
+            window._sayTimer = setTimeout(() => speechEl.classList.remove('show'), 4000);
+        }
+
+        // ─── Mouse Look ───
+        const mouse = { x: 0, y: 0 };
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = (e.clientX / window.innerWidth - 0.5) * 2;
+            mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+        });
+
+        // ─── Animation Loop ───
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+
+            if (currentVrm) {
+                // Auto blink
+                blinkTimer += delta;
+                if (blinkTimer > 3 + Math.random() * 2) {
+                    blinkTimer = 0;
+                    isBlinking = true;
+                    setTimeout(() => isBlinking = false, 150);
+                }
+                if (currentVrm.expressionManager) {
+                    currentVrm.expressionManager.setValue(VRMExpressionPresetName.Blink, isBlinking ? 1 : 0);
+                }
+
+                // Talking mouth animation
+                if (isTalking && currentVrm.expressionManager) {
+                    talkTimer += delta * 8;
+                    const mouthOpen = (Math.sin(talkTimer) + 1) * 0.3;
+                    currentVrm.expressionManager.setValue(VRMExpressionPresetName.Aa, mouthOpen);
+                }
+
+                // Head look at mouse (safe check)
+                try {
+                    if (currentVrm.lookAt && currentVrm.lookAt.target && currentVrm.lookAt.target.set) {
+                        const targetX = mouse.x * 15;
+                        const targetY = mouse.y * 10;
+                        currentVrm.lookAt.target.set(targetX, 1.3 + targetY * 0.1, -1);
+                    } else {
+                        // Fallback: rotate head manually to follow mouse
+                        const head = currentVrm.humanoid?.getNormalizedBoneNode('head');
+                        if (head) {
+                            head.rotation.y += (mouse.x * 0.3 - head.rotation.y) * 0.05;
+                            head.rotation.x += (-mouse.y * 0.2 - head.rotation.x) * 0.05;
+                        }
+                    }
+                } catch(e) {}
+
+                // Head bobbing
+                headBob.x += (headBob.targetX - headBob.x) * 0.1;
+                headBob.y += (headBob.targetY - headBob.y) * 0.1;
+
+                const head = currentVrm.humanoid?.getNormalizedBoneNode('head');
+                if (head) {
+                    head.rotation.x += headBob.x;
+                    head.rotation.z += headBob.y;
+                }
+
+                // Idle sway
+                const spine = currentVrm.humanoid?.getNormalizedBoneNode('spine');
+                if (spine) {
+                    spine.rotation.z = Math.sin(clock.elapsedTime * 0.5) * 0.02;
+                    spine.rotation.x = Math.sin(clock.elapsedTime * 0.3) * 0.01;
+                }
+
+                currentVrm.update(delta);
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

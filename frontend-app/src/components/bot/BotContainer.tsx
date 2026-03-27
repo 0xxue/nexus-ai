@@ -16,7 +16,27 @@ import { useBotStore } from '../../store/bot';
 export function BotContainer() {
   const { enabled, plugin, size, emotion } = useBotStore();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ x: window.innerWidth - 210, y: window.innerHeight - 250 });
+  const getMobileSize = () => window.innerWidth <= 768 ? 100 : size;
+  const [pos, setPos] = useState(() => {
+    const s = getMobileSize();
+    return {
+      x: window.innerWidth - s - 30,
+      y: window.innerHeight - s - (window.innerWidth <= 768 ? 80 : 70),
+    };
+  });
+
+  // Reposition on window resize
+  useEffect(() => {
+    const onResize = () => {
+      const s = getMobileSize();
+      setPos({
+        x: window.innerWidth - s - 30,
+        y: window.innerHeight - s - (window.innerWidth <= 768 ? 80 : 70),
+      });
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [size]);
   const [dragging, setDragging] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
   const [speechText, setSpeechText] = useState('');
@@ -121,14 +141,14 @@ export function BotContainer() {
           position: 'fixed',
           left: pos.x + (dragging ? 0 : float.x),
           top: pos.y + (dragging ? 0 : float.y),
-          width: 180,
-          height: 180,
+          width: getMobileSize(),
+          height: getMobileSize(),
           zIndex: 1000,
           cursor: dragging ? 'grabbing' : 'pointer',
           userSelect: 'none',
           transition: dragging ? 'none' : 'left 0.7s cubic-bezier(0.34,1.2,0.64,1), top 0.7s cubic-bezier(0.34,1.2,0.64,1)',
           filter: `drop-shadow(0 0 20px rgba(212, 82, 26, ${dragging ? 0.5 : 0.25}))`,
-          transform: `scale(${size / 180})${dragging ? ' scale(1.08)' : ''}`,
+          transform: `scale(${size / getMobileSize()})${dragging ? ' scale(1.08)' : ''}`,
           transformOrigin: 'center center',
           overflow: 'visible',
         }}

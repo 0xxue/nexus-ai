@@ -233,11 +233,7 @@ body::before {
     box-shadow: none !important;
   }
 
-  /* ── Bot: smaller + bottom right ── */
-  [data-bot-container] {
-    transform: scale(0.55) !important;
-    transform-origin: bottom right !important;
-  }
+  /* ── Bot: handled in JS via resize listener ── */
 
   /* ── Toast: above bottom bar ── */
   .toast-container {

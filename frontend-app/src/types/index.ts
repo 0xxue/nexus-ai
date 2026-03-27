@@ -1,4 +1,4 @@
-export type { BotPlugin, BotEmotion, BotConfig } from './bot';
+export type { BotPlugin, BotEmotion, BotAction, BotConfig } from './bot';
 
 export interface Message {
   id: string;

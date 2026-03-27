@@ -75,7 +75,7 @@ export default function ChatPage() {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <span className="font-mono" style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--mid)' }}>
-            HISTORY
+            Conversations
           </span>
           <button
             onClick={() => clearMessages()}

@@ -14,15 +14,18 @@ export interface BotPlugin {
   mount(container: HTMLElement): void;
   /** Unmount and clean up resources */
   unmount(): void;
-  /** Set emotional state (idle, happy, thinking, talking, surprised) */
+  /** Set emotional state */
   setEmotion(state: BotEmotion): void;
-  /** Start talking animation */
+  /** Start talking animation (mouth moves) */
   startTalking(): void;
   /** Stop talking animation */
   stopTalking(): void;
+  /** Trigger a one-shot action (wave, nod, think) */
+  triggerAction?(action: BotAction): void;
 }
 
-export type BotEmotion = 'idle' | 'happy' | 'thinking' | 'talking' | 'surprised';
+export type BotEmotion = 'idle' | 'happy' | 'angry' | 'sad' | 'thinking' | 'talking' | 'surprised';
+export type BotAction = 'wave' | 'nod' | 'think';
 
 export interface BotConfig {
   enabled: boolean;

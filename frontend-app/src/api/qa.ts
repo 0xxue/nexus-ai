@@ -14,7 +14,7 @@ export const askQuestion = (query: string, conversationId?: number) =>
   client.post('/qa/ask', { query, conversation_id: conversationId });
 
 export async function streamQuestion(query: string, conversationId?: number, callbacks?: StreamCallbacks) {
-  const url = `${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}/qa/stream`;
+  const url = `${import.meta.env.VITE_API_URL || '/api/v1'}/qa/stream`;
   const token = localStorage.getItem('token');
 
   const response = await fetch(url, {

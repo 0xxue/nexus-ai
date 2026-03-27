@@ -32,11 +32,25 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
-        # In production: fetch user from database
         from types import SimpleNamespace
         return SimpleNamespace(id=user_id, role=payload.get("role", "user"))
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+async def get_optional_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))):
+    """Optional auth — returns demo user if no token provided (for demo/dev mode)."""
+    if not credentials:
+        from types import SimpleNamespace
+        return SimpleNamespace(id="demo", role="user")
+    settings = get_settings()
+    try:
+        payload = jwt.decode(credentials.credentials, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        from types import SimpleNamespace
+        return SimpleNamespace(id=payload.get("sub", "demo"), role=payload.get("role", "user"))
+    except JWTError:
+        from types import SimpleNamespace
+        return SimpleNamespace(id="demo", role="user")
 
 
 async def authenticate_user(username: str, password: str):

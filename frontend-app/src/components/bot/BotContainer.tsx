@@ -124,7 +124,7 @@ export function BotContainer() {
           width: size,
           height: size,
           zIndex: 1000,
-          cursor: dragging ? 'grabbing' : 'grab',
+          cursor: dragging ? 'grabbing' : 'pointer',
           userSelect: 'none',
           transition: dragging ? 'none' : 'left 0.7s cubic-bezier(0.34,1.2,0.64,1), top 0.7s cubic-bezier(0.34,1.2,0.64,1)',
           filter: `drop-shadow(0 0 20px rgba(212, 82, 26, ${dragging ? 0.5 : 0.25}))`,
@@ -132,7 +132,7 @@ export function BotContainer() {
           overflow: 'visible',
         }}
       >
-        <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+        <div ref={containerRef} style={{ width: '100%', height: '100%', cursor: 'inherit' }} />
       </div>
     </>
   );

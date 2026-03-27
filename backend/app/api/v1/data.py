@@ -8,14 +8,14 @@ Customize these for your domain.
 """
 
 from fastapi import APIRouter, Depends, Query
-from app.services.auth import get_current_user
+from app.services.auth import get_optional_user
 from app.services.data_service import DataService
 
 router = APIRouter()
 
 
 @router.get("/system/overview")
-async def system_overview(user=Depends(get_current_user)):
+async def system_overview(user=Depends(get_optional_user)):
     """System-wide overview: total users, active users, items, health."""
     svc = DataService()
     return await svc.get_system_overview()
@@ -24,7 +24,7 @@ async def system_overview(user=Depends(get_current_user)):
 @router.get("/items/expiring")
 async def items_expiring(
     date: str = Query(None, description="Date string, e.g. 'today', 'tomorrow', '2025-12-01'"),
-    user=Depends(get_current_user),
+    user=Depends(get_optional_user),
 ):
     """Items expiring on or near the specified date."""
     svc = DataService()
@@ -35,7 +35,7 @@ async def items_expiring(
 async def item_stats(
     start_date: str = Query(None),
     end_date: str = Query(None),
-    user=Depends(get_current_user),
+    user=Depends(get_optional_user),
 ):
     """Item statistics for a date range."""
     svc = DataService()
@@ -45,7 +45,7 @@ async def item_stats(
 @router.get("/metrics/summary")
 async def summary_metrics(
     period: str = Query("daily", description="daily / weekly / monthly"),
-    user=Depends(get_current_user),
+    user=Depends(get_optional_user),
 ):
     """Summary metrics: revenue, costs, KPIs."""
     svc = DataService()
@@ -53,14 +53,14 @@ async def summary_metrics(
 
 
 @router.get("/users/stats")
-async def user_stats(user=Depends(get_current_user)):
+async def user_stats(user=Depends(get_optional_user)):
     """User statistics: registrations, active, retention."""
     svc = DataService()
     return await svc.get_user_stats()
 
 
 @router.get("/categories/distribution")
-async def category_distribution(user=Depends(get_current_user)):
+async def category_distribution(user=Depends(get_optional_user)):
     """Category/tier distribution."""
     svc = DataService()
     return await svc.get_category_distribution()

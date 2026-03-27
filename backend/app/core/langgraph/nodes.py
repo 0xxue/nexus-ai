@@ -263,7 +263,7 @@ async def fallback(state: QAState) -> dict:
 
     response = await call_llm(
         model="primary",
-        system="The user's question couldn't be matched to a data source. Answer from general knowledge, but clearly state this is not based on real-time data.",
+        system="The user's question couldn't be matched to a data source. Answer from general knowledge, but clearly state this is not based on real-time data. IMPORTANT: Reply in the same language the user used.",
         user=query,
     )
 

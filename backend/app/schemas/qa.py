@@ -9,9 +9,16 @@ class QARequest(BaseModel):
     conversation_id: Optional[str] = Field(None, description="For multi-turn conversations")
 
 
+class SourceItem(BaseModel):
+    type: str = ""
+    name: str = ""
+    endpoint: Optional[str] = None
+    query_time: Optional[str] = None
+
+
 class QAResponse(BaseModel):
     answer: str
-    sources: list[str] = []
+    sources: list[SourceItem] = []
     chart: Optional[dict] = None
     confidence: float = Field(0.0, ge=0, le=1)
     trace_id: str = ""

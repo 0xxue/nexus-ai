@@ -1,54 +1,72 @@
 import { useState, useEffect } from 'react';
 import ReactECharts from 'echarts-for-react';
 import client from '../../api/client';
-import { Users, Activity, TrendingUp, Clock } from 'lucide-react';
+import { Users, MessageSquare, FileText, Database, Clock } from 'lucide-react';
 
-interface OverviewData {
+interface StatsData {
   total_users: number;
-  active_users: number;
-  new_users_today: number;
-  total_items: number;
+  total_conversations: number;
+  total_messages: number;
+  total_documents: number;
+  total_collections: number;
   system_health: string;
+  uptime_seconds: number;
 }
 
 const STAT_CARDS = [
-  { key: 'total_users', label: 'TOTAL USERS', icon: Users, color: '#4a90d9', num: '01' },
-  { key: 'active_users', label: 'ACTIVE', icon: Activity, color: 'var(--success)', num: '02' },
-  { key: 'total_items', label: 'TOTAL ITEMS', icon: TrendingUp, color: 'var(--orange)', num: '03' },
-  { key: 'new_users_today', label: 'NEW TODAY', icon: Clock, color: '#8b5cf6', num: '04' },
+  { key: 'total_users', label: 'USERS', icon: Users, color: '#4a90d9', num: '01' },
+  { key: 'total_conversations', label: 'CONVERSATIONS', icon: MessageSquare, color: 'var(--success)', num: '02' },
+  { key: 'total_messages', label: 'MESSAGES', icon: FileText, color: 'var(--orange)', num: '03' },
+  { key: 'total_documents', label: 'KB DOCUMENTS', icon: Database, color: '#8b5cf6', num: '04' },
 ];
 
+function formatUptime(seconds: number): string {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
 export default function DashboardPage() {
-  const [data, setData] = useState<OverviewData | null>(null);
+  const [data, setData] = useState<StatsData | null>(null);
 
   useEffect(() => {
-    client.get('/data/system/overview')
+    client.get('/stats')
       .then(setData)
       .catch(() => setData({
-        total_users: 12580, active_users: 3456, new_users_today: 89, total_items: 580, system_health: 'healthy',
+        total_users: 0, total_conversations: 0, total_messages: 0,
+        total_documents: 0, total_collections: 0, system_health: 'healthy', uptime_seconds: 0,
       }));
   }, []);
 
   if (!data) return null;
 
   return (
-    <div style={{ overflowY: 'auto', padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+    <div style={{ overflowY: 'auto', padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: 22, height: '100%' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
         <div>
-          <h1 className="font-display" style={{ fontSize: 44, letterSpacing: 6, color: 'var(--ink)', lineHeight: 1 }}>
+          <h1 className="font-display dash-title" style={{ fontSize: 44, letterSpacing: 6, color: 'var(--ink)', lineHeight: 1 }}>
             DASHBOARD
           </h1>
           <p className="font-mono" style={{ fontSize: 10, color: 'var(--dim)', letterSpacing: 1, marginTop: 4 }}>
-            // SYSTEM OVERVIEW · REAL-TIME
+            // SYSTEM STATS · REAL-TIME FROM DATABASE
           </p>
         </div>
-        <div className="font-mono" style={{
-          padding: '6px 14px', border: '1.5px solid var(--success)',
-          color: 'var(--success)', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase',
-          background: 'rgba(58, 122, 58, 0.08)',
-        }}>
-          ● {data.system_health}
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div className="font-mono" style={{ fontSize: 10, color: 'var(--dim)' }}>
+            <Clock size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+            Uptime: {formatUptime(data.uptime_seconds)}
+          </div>
+          <div className="font-mono" style={{
+            padding: '6px 14px', border: '1.5px solid var(--success)',
+            color: 'var(--success)', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase',
+            background: 'rgba(58, 122, 58, 0.08)',
+          }}>
+            ● {data.system_health}
+          </div>
         </div>
       </div>
 
@@ -75,7 +93,6 @@ export default function DashboardPage() {
                 (e.currentTarget as HTMLElement).style.boxShadow = '';
               }}
             >
-              {/* Big background number */}
               <div className="font-display" style={{
                 position: 'absolute', right: 8, top: -10, fontSize: 90,
                 color: 'rgba(212, 82, 26, 0.06)', lineHeight: 1, pointerEvents: 'none',
@@ -98,8 +115,8 @@ export default function DashboardPage() {
 
       {/* Charts */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }} className="charts-grid">
-        <ChartCard title="USER TREND (7D)" option={userTrendOption()} />
-        <ChartCard title="ACTIVITY DISTRIBUTION" option={activityOption()} />
+        <ChartCard title="SYSTEM OVERVIEW" option={overviewChart(data)} />
+        <ChartCard title="COLLECTIONS" option={collectionsChart(data)} />
       </div>
     </div>
   );
@@ -116,31 +133,42 @@ function ChartCard({ title, option }: { title: string; option: Record<string, un
   );
 }
 
-function userTrendOption() {
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (6 - i));
-    return `${d.getMonth() + 1}/${d.getDate()}`;
-  });
+function overviewChart(data: StatsData) {
   return {
     grid: { top: 20, right: 16, bottom: 24, left: 40 },
-    xAxis: { type: 'category', data: days, axisLine: { lineStyle: { color: '#a09070' } }, axisLabel: { fontSize: 10, color: '#a09070' } },
+    xAxis: {
+      type: 'category',
+      data: ['Users', 'Conversations', 'Messages', 'Documents'],
+      axisLine: { lineStyle: { color: '#a09070' } },
+      axisLabel: { fontSize: 10, color: '#a09070' },
+    },
     yAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(26,20,8,0.08)' } }, axisLabel: { fontSize: 10, color: '#a09070' } },
-    series: [
-      { type: 'line', data: [3200, 3280, 3350, 3400, 3380, 3420, 3456], smooth: true, lineStyle: { color: '#d4521a', width: 2 }, itemStyle: { color: '#d4521a' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(212,82,26,0.15)' }, { offset: 1, color: 'rgba(212,82,26,0)' }] } } },
-      { type: 'bar', data: [78, 82, 95, 88, 91, 85, 89], itemStyle: { color: 'rgba(212,82,26,0.2)' }, barWidth: 12 },
-    ],
+    series: [{
+      type: 'bar',
+      data: [
+        { value: data.total_users, itemStyle: { color: '#4a90d9' } },
+        { value: data.total_conversations, itemStyle: { color: '#3a7a3a' } },
+        { value: data.total_messages, itemStyle: { color: '#d4521a' } },
+        { value: data.total_documents, itemStyle: { color: '#8b5cf6' } },
+      ],
+      barWidth: 30,
+    }],
     tooltip: { trigger: 'axis' },
   };
 }
 
-function activityOption() {
+function collectionsChart(data: StatsData) {
   return {
-    grid: { top: 20, right: 16, bottom: 24, left: 40 },
-    xAxis: { type: 'category', data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], axisLine: { lineStyle: { color: '#a09070' } }, axisLabel: { fontSize: 10, color: '#a09070' } },
-    yAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(26,20,8,0.08)' } }, axisLabel: { fontSize: 10, color: '#a09070' } },
-    series: [
-      { type: 'bar', data: [1200, 1340, 1420, 1280, 1380, 950, 880], itemStyle: { color: '#d4521a' }, barWidth: 20 },
-    ],
-    tooltip: { trigger: 'axis' },
+    series: [{
+      type: 'pie',
+      radius: ['40%', '70%'],
+      data: [
+        { value: data.total_documents, name: 'Documents', itemStyle: { color: '#d4521a' } },
+        { value: data.total_collections, name: 'Collections', itemStyle: { color: '#4a90d9' } },
+        { value: Math.max(1, data.total_messages), name: 'Messages', itemStyle: { color: '#3a7a3a' } },
+      ],
+      label: { fontSize: 10, color: '#6a5a3a' },
+    }],
+    tooltip: { trigger: 'item' },
   };
 }

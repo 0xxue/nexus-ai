@@ -212,11 +212,16 @@ async def _search_with_rag(query: str, top_k: int) -> list[dict]:
             logger.info("RAG matched", query=query[:50], apis=[m["name"] for m in matched[:top_k]])
             return matched[:top_k]
 
-        logger.warning("RAG returned no matches", query=query[:50])
+        # No match from RAG — try keyword fallback before giving up
+        logger.warning("RAG returned no matches, trying keywords", query=query[:50])
+        kw_results = _search_with_keywords(query, top_k)
+        if kw_results and kw_results[0].get("confidence", 0) > 0.2:
+            return kw_results
+        # Default: at least try system_overview
         return [{
             "name": "system_overview",
             "endpoint": "/api/v1/data/system/overview",
-            "confidence": 0.3,
+            "confidence": 0.65,
             "params": {},
         }]
 
@@ -228,11 +233,11 @@ async def _search_with_rag(query: str, top_k: int) -> list[dict]:
 def _search_with_keywords(query: str, top_k: int) -> list[dict]:
     """Fallback keyword matching when LightRAG is not available."""
     keywords_map = {
-        "system_overview": ["overview", "status", "health", "dashboard", "system", "overall"],
-        "items_expiring": ["expir", "ending", "deadline", "overdue", "due", "expire"],
-        "item_stats": ["stats", "trend", "analysis", "compare", "report", "items"],
-        "summary_metrics": ["budget", "revenue", "cost", "spend", "profit", "money", "metric"],
-        "user_stats": ["user", "active", "retention", "growth", "register"],
+        "system_overview": ["overview", "status", "health", "dashboard", "system", "overall", "概览", "整体", "状态", "情况", "总览", "数据"],
+        "items_expiring": ["expir", "ending", "deadline", "overdue", "due", "expire", "到期", "结束", "截止", "过期"],
+        "item_stats": ["stats", "trend", "analysis", "compare", "report", "items", "统计", "分析", "趋势", "对比"],
+        "summary_metrics": ["budget", "revenue", "cost", "spend", "profit", "money", "metric", "资金", "收入", "支出", "利润", "预算", "费用"],
+        "user_stats": ["user", "active", "retention", "growth", "register", "用户", "注册", "活跃", "留存", "增长"],
     }
 
     matched = []
@@ -252,6 +257,6 @@ def _search_with_keywords(query: str, top_k: int) -> list[dict]:
     return matched[:top_k] if matched else [{
         "name": "system_overview",
         "endpoint": "/api/v1/data/system/overview",
-        "confidence": 0.2,
+        "confidence": 0.65,
         "params": {},
     }]

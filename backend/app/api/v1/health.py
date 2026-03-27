@@ -35,3 +35,39 @@ async def detailed_health():
             "redis": "healthy" if redis_ok else "unhealthy",
         },
     }
+
+
+@router.get("/stats")
+async def system_stats():
+    """Real system stats from database for Dashboard."""
+    from app.services.database import _session_factory
+    from sqlalchemy import text
+
+    stats = {
+        "total_users": 0,
+        "total_conversations": 0,
+        "total_messages": 0,
+        "total_documents": 0,
+        "total_collections": 0,
+        "system_health": "healthy",
+        "uptime_seconds": int(time.time() - START_TIME),
+    }
+
+    if not _session_factory:
+        return stats
+
+    try:
+        async with _session_factory() as session:
+            for table, key in [
+                ("users", "total_users"),
+                ("conversations", "total_conversations"),
+                ("messages", "total_messages"),
+                ("kb_documents", "total_documents"),
+                ("kb_collections", "total_collections"),
+            ]:
+                result = await session.execute(text(f"SELECT COUNT(*) FROM {table}"))
+                stats[key] = result.scalar() or 0
+    except Exception:
+        pass
+
+    return stats

@@ -63,13 +63,6 @@ function Sidebar() {
           ))}
         </div>
 
-        {/* Status indicator */}
-        <div className="font-mono" style={{
-          position: 'absolute', bottom: 12, fontSize: 9, color: 'var(--dim)',
-          writingMode: 'vertical-rl', transform: 'rotate(180deg)', letterSpacing: 1,
-        }}>
-          <span style={{ color: '#22c55e' }}>●</span> ONLINE
-        </div>
       </nav>
 
       {/* Mobile bottom bar */}
@@ -161,7 +154,7 @@ export default function App() {
         <Sidebar />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
           <TopStrip />
-          <div style={{ flex: 1, overflow: 'hidden' }}>
+          <div style={{ flex: 1, overflow: 'auto' }}>
             <Routes>
               <Route path="/" element={<Navigate to="/chat" replace />} />
               <Route path="/chat" element={<ChatPage />} />

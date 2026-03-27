@@ -178,7 +178,7 @@ class ConversationService:
         try:
             title = await call_llm(
                 model="secondary",
-                system="根据用户的第一条消息生成一个简短的对话标题（10字以内，中文）。只返回标题文本，不要引号。",
+                system="Generate a short conversation title (under 8 words) from the user's first message. Reply with ONLY the title text, no quotes. Use the same language as the user.",
                 user=first_message,
             )
             title = title.strip().strip('"').strip("'")[:50]

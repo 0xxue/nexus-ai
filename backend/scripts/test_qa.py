@@ -21,11 +21,12 @@ import httpx
 import asyncio
 import sys
 import io
+import os
 
 # Fix Windows encoding
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
-BASE_URL = "http://43.153.166.137:8000"
+BASE_URL = os.environ.get("QA_TEST_URL", "http://localhost:8000")
 API = f"{BASE_URL}/api/v1"
 
 # Colors

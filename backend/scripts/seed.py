@@ -52,7 +52,7 @@ async def seed():
         )
 
         await session.commit()
-        print("Seed complete: admin/admin123, demo/demo123, 1 KB collection created.")
+        print("Seed complete: 2 users (admin, demo) + 1 KB collection created. Check .env.example for default credentials.")
 
 
 if __name__ == "__main__":

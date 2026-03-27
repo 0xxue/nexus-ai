@@ -1,39 +1,34 @@
 import { create } from 'zustand';
-
-export interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  sources?: Array<{ type: string; name: string }>;
-  chart?: Record<string, any>;
-  confidence?: number;
-  loading?: boolean;
-  steps?: string[];
-}
+import type { Message, Conversation } from '../types';
 
 interface ChatStore {
   messages: Message[];
-  conversationId: string | null;
+  conversations: Conversation[];
+  conversationId: number | null;
   streaming: boolean;
   addMessage: (msg: Message) => void;
-  updateLastMessage: (update: Partial<Message>) => void;
+  updateLastMessage: (partial: Partial<Message>) => void;
   setStreaming: (v: boolean) => void;
-  setConversationId: (id: string | null) => void;
+  setConversationId: (id: number | null) => void;
+  setConversations: (c: Conversation[]) => void;
   clearMessages: () => void;
 }
 
 export const useChatStore = create<ChatStore>((set) => ({
   messages: [],
+  conversations: [],
   conversationId: null,
   streaming: false,
   addMessage: (msg) => set((s) => ({ messages: [...s.messages, msg] })),
-  updateLastMessage: (update) =>
-    set((s) => ({
-      messages: s.messages.map((m, i) =>
-        i === s.messages.length - 1 ? { ...m, ...update } : m
-      ),
-    })),
+  updateLastMessage: (partial) =>
+    set((s) => {
+      const msgs = [...s.messages];
+      const last = msgs[msgs.length - 1];
+      if (last) msgs[msgs.length - 1] = { ...last, ...partial };
+      return { messages: msgs };
+    }),
   setStreaming: (streaming) => set({ streaming }),
   setConversationId: (conversationId) => set({ conversationId }),
+  setConversations: (conversations) => set({ conversations }),
   clearMessages: () => set({ messages: [], conversationId: null }),
 }));

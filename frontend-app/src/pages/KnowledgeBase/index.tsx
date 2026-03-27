@@ -1,199 +1,175 @@
 import { useState, useEffect } from 'react';
 import { listCollections, createCollection, deleteCollection, uploadDocument, listDocuments } from '../../api/kb';
-import { Database, Upload, Trash2, FileText, Plus, Search } from 'lucide-react';
-
-interface Collection {
-  id: number;
-  name: string;
-  description: string;
-  doc_count: number;
-}
-
-interface Document {
-  id: number;
-  filename: string;
-  file_type: string;
-  chunk_count: number;
-  status: string;
-}
+import { Upload, Trash2, FileText, Plus, FolderOpen } from 'lucide-react';
+import { Modal } from '../../components/ui/Modal';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Badge } from '../../components/ui/Badge';
+import { toast } from '../../components/ui/Toast';
+import type { KBCollection, KBDocument } from '../../types';
 
 export default function KnowledgeBasePage() {
-  const [collections, setCollections] = useState<Collection[]>([]);
-  const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [collections, setCollections] = useState<KBCollection[]>([]);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [docs, setDocs] = useState<KBDocument[]>([]);
+  const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
-  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    loadCollections();
+    listCollections().then(setCollections).catch(() => {});
   }, []);
 
-  const loadCollections = async () => {
-    try {
-      const res: any = await listCollections();
-      setCollections(res.collections || []);
-    } catch {}
-  };
-
-  const loadDocuments = async (collection: Collection) => {
-    setSelectedCollection(collection);
-    try {
-      const res: any = await listDocuments(collection.id);
-      setDocuments(res.documents || []);
-    } catch {}
-  };
+  useEffect(() => {
+    if (selectedId) listDocuments(selectedId).then(setDocs).catch(() => setDocs([]));
+  }, [selectedId]);
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
     await createCollection(newName, newDesc);
-    setNewName('');
-    setNewDesc('');
-    setShowCreateModal(false);
-    loadCollections();
+    setShowCreate(false); setNewName(''); setNewDesc('');
+    listCollections().then(setCollections);
+    toast('Collection created', 'success');
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('确认删除？')) return;
     await deleteCollection(id);
-    if (selectedCollection?.id === id) {
-      setSelectedCollection(null);
-      setDocuments([]);
-    }
-    loadCollections();
+    if (selectedId === id) { setSelectedId(null); setDocs([]); }
+    listCollections().then(setCollections);
+    toast('Collection deleted', 'info');
   };
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length || !selectedCollection) return;
-    setUploading(true);
-    try {
-      await uploadDocument(selectedCollection.id, e.target.files[0]);
-      loadDocuments(selectedCollection);
-    } catch (err) {
-      alert('上传失败');
-    } finally {
-      setUploading(false);
+  const handleUpload = async (files: FileList) => {
+    if (!selectedId) return;
+    for (const file of Array.from(files)) {
+      await uploadDocument(selectedId, file);
     }
+    listDocuments(selectedId).then(setDocs);
+    toast(`${files.length} file(s) uploaded`, 'success');
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Sidebar: Collections */}
-      <div className="w-72 bg-white border-r flex flex-col">
-        <div className="p-4 border-b flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Database size={20} className="text-blue-600" />
-            <h2 className="font-semibold">知识库</h2>
-          </div>
-          <button onClick={() => setShowCreateModal(true)} className="p-1.5 hover:bg-gray-100 rounded">
-            <Plus size={18} />
+    <div style={{ display: 'flex', height: '100%' }}>
+      {/* Left: Collections */}
+      <div className="kb-left" style={{
+        width: 220, borderRight: '1.5px solid var(--line)',
+        display: 'flex', flexDirection: 'column', background: 'rgba(232, 220, 200, 0.5)',
+      }}>
+        <div style={{
+          padding: '14px 16px', borderBottom: '1.5px solid var(--line)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <span className="font-mono" style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--mid)' }}>
+            COLLECTIONS
+          </span>
+          <button
+            onClick={() => setShowCreate(true)}
+            style={{ width: 26, height: 26, border: '1.5px solid var(--line)', background: 'var(--cream)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Plus size={14} color="var(--orange)" />
           </button>
         </div>
-
-        <div className="flex-1 overflow-y-auto p-2">
-          {collections.map((c) => (
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {collections.map(c => (
             <div
               key={c.id}
-              onClick={() => loadDocuments(c)}
-              className={`p-3 rounded-lg cursor-pointer mb-1 flex items-center justify-between ${
-                selectedCollection?.id === c.id ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50'
-              }`}
+              onClick={() => setSelectedId(c.id)}
+              className="animate-slide-in"
+              style={{
+                padding: '12px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
+                borderLeft: c.id === selectedId ? '3px solid var(--orange)' : '3px solid transparent',
+                background: c.id === selectedId ? 'rgba(212, 82, 26, 0.08)' : 'transparent',
+                transition: 'background 0.2s',
+              }}
             >
-              <div>
-                <div className="font-medium text-sm">{c.name}</div>
-                <div className="text-xs text-gray-400">{c.doc_count} 个文档</div>
+              <FolderOpen size={16} color="var(--orange)" />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+                <div className="font-mono" style={{ fontSize: 9, color: 'var(--dim)' }}>{c.doc_count} docs</div>
               </div>
-              <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }} className="text-gray-300 hover:text-red-500">
-                <Trash2 size={14} />
+              <button onClick={e => { e.stopPropagation(); handleDelete(c.id); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+                <Trash2 size={12} color="var(--dim)" />
               </button>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Main: Documents */}
-      <div className="flex-1 flex flex-col">
-        {selectedCollection ? (
+      {/* Right: Documents */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {selectedId ? (
           <>
-            <div className="p-4 border-b bg-white flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold">{selectedCollection.name}</h3>
-                <p className="text-sm text-gray-500">{selectedCollection.description}</p>
+            {/* Upload zone */}
+            <div
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => { e.preventDefault(); handleUpload(e.dataTransfer.files); }}
+              style={{
+                margin: 16, padding: 20, border: '2px dashed var(--line)',
+                textAlign: 'center', cursor: 'pointer', transition: 'border-color 0.2s',
+              }}
+              onClick={() => {
+                const input = document.createElement('input');
+                input.type = 'file'; input.multiple = true;
+                input.accept = '.pdf,.docx,.xlsx,.csv,.txt,.md';
+                input.onchange = () => input.files && handleUpload(input.files);
+                input.click();
+              }}
+            >
+              <Upload size={20} color="var(--orange)" style={{ margin: '0 auto 8px' }} />
+              <div className="font-mono" style={{ fontSize: 11, color: 'var(--mid)' }}>
+                Drop files here or click to upload
               </div>
-              <label className={`flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 ${uploading ? 'opacity-50' : ''}`}>
-                <Upload size={16} />
-                {uploading ? '上传中...' : '上传文档'}
-                <input type="file" className="hidden" onChange={handleUpload} accept=".pdf,.docx,.xlsx,.csv,.txt,.md" disabled={uploading} />
-              </label>
+              <div className="font-mono" style={{ fontSize: 9, color: 'var(--dim)', marginTop: 4 }}>
+                PDF · DOCX · XLSX · CSV · TXT · MD
+              </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4">
-              {documents.length === 0 ? (
-                <div className="text-center text-gray-400 mt-20">
-                  <FileText size={48} className="mx-auto mb-4" />
-                  <p>暂无文档，点击上方按钮上传</p>
-                  <p className="text-xs mt-1">支持 PDF / Word / Excel / TXT</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {documents.map((doc) => (
-                    <div key={doc.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
-                      <div className="flex items-center gap-3">
-                        <FileText size={20} className="text-gray-400" />
-                        <div>
-                          <div className="font-medium text-sm">{doc.filename}</div>
-                          <div className="text-xs text-gray-400">{doc.chunk_count} 个分块 · {doc.status}</div>
-                        </div>
-                      </div>
-                      <span className={`text-xs px-2 py-0.5 rounded ${
-                        doc.status === 'ready' ? 'bg-green-50 text-green-600' :
-                        doc.status === 'processing' ? 'bg-yellow-50 text-yellow-600' :
-                        'bg-red-50 text-red-600'
-                      }`}>
-                        {doc.status}
-                      </span>
+            {/* Document list */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px' }}>
+              {docs.map(d => (
+                <div key={d.id} className="animate-slide-in" style={{
+                  padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10,
+                  borderBottom: '1px solid var(--line)',
+                }}>
+                  <FileText size={16} color="var(--orange)" />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.filename}</div>
+                    <div className="font-mono" style={{ fontSize: 9, color: 'var(--dim)' }}>
+                      {d.chunk_count} chunks · {(d.file_size / 1024).toFixed(0)} KB
                     </div>
-                  ))}
+                  </div>
+                  <Badge color={d.status === 'ready' ? 'green' : d.status === 'failed' ? 'red' : 'orange'}>
+                    {d.status}
+                  </Badge>
                 </div>
-              )}
+              ))}
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-400">
-            <div className="text-center">
-              <Search size={48} className="mx-auto mb-4" />
-              <p>选择或创建一个知识库</p>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ textAlign: 'center' }}>
+              <FolderOpen size={40} color="var(--dim)" style={{ margin: '0 auto 12px' }} />
+              <div className="font-mono" style={{ fontSize: 12, color: 'var(--dim)' }}>
+                Select or create a knowledge base
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Create Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-96">
-            <h3 className="text-lg font-semibold mb-4">创建知识库</h3>
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="知识库名称"
-              className="w-full border rounded-lg px-3 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <textarea
-              value={newDesc}
-              onChange={(e) => setNewDesc(e.target.value)}
-              placeholder="描述（可选）"
-              className="w-full border rounded-lg px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              rows={2}
-            />
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">取消</button>
-              <button onClick={handleCreate} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">创建</button>
-            </div>
-          </div>
+      {/* Create modal */}
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="NEW COLLECTION"
+        actions={<>
+          <Button variant="outline" onClick={() => setShowCreate(false)}>CANCEL</Button>
+          <Button onClick={handleCreate}>CREATE</Button>
+        </>}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <Input placeholder="Collection name" value={newName} onChange={e => setNewName(e.target.value)} />
+          <Input placeholder="Description (optional)" value={newDesc} onChange={e => setNewDesc(e.target.value)} />
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

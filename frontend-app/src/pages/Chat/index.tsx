@@ -1,161 +1,195 @@
-import { useRef, useEffect } from 'react';
-import { useChatStore, Message } from '../../store/chat';
-import { streamQuestion } from '../../api/qa';
-import ChatMessage from '../../components/ChatMessage';
-import ChatInput from '../../components/ChatInput';
-import { MessageSquare, Plus } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { useChatStore } from '../../store/chat';
+import { useBotStore } from '../../store/bot';
+import { streamQuestion, getConversations } from '../../api/qa';
+import { MessageBubble } from './MessageBubble';
+import { Plus } from 'lucide-react';
+import type { Message } from '../../types';
+
+const SUGGESTED = [
+  'Show me the system overview',
+  'What items are expiring this week?',
+  'How is user growth trending?',
+  'Summarize the key metrics',
+];
 
 export default function ChatPage() {
-  const { messages, streaming, conversationId, addMessage, updateLastMessage, setStreaming, clearMessages } = useChatStore();
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const { messages, conversations, streaming, conversationId, addMessage, updateLastMessage, setStreaming, setConversations, clearMessages } = useChatStore();
+  const setEmotion = useBotStore(s => s.setEmotion);
+  const [input, setInput] = useState('');
+  const msgsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    getConversations().then(setConversations).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (msgsRef.current) msgsRef.current.scrollTop = msgsRef.current.scrollHeight;
   }, [messages]);
 
-  const handleSend = async (query: string) => {
-    // Add user message
-    const userMsg: Message = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: query,
-    };
+  const sendMsg = async (text: string) => {
+    if (!text.trim() || streaming) return;
+
+    const userMsg: Message = { id: `u-${Date.now()}`, role: 'user', content: text };
     addMessage(userMsg);
 
-    // Add loading assistant message
-    const assistantMsg: Message = {
-      id: `assistant-${Date.now()}`,
-      role: 'assistant',
-      content: '',
-      loading: true,
-      steps: [],
-    };
-    addMessage(assistantMsg);
+    const aiMsg: Message = { id: `a-${Date.now()}`, role: 'assistant', content: '', loading: true, steps: [] };
+    addMessage(aiMsg);
     setStreaming(true);
+    setEmotion('thinking');
 
     try {
-      const response = await streamQuestion(query, conversationId || undefined);
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-
-      let fullContent = '';
-      let sources: any[] = [];
-      let chart: any = null;
-      let confidence = 0;
-      let steps: string[] = [];
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const text = decoder.decode(value);
-          const lines = text.split('\n');
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6));
-
-                if (data.done) continue;
-
-                if (data.node) {
-                  steps.push(data.node);
-                  const nodeData = data.data || {};
-
-                  if (nodeData.answer) fullContent = nodeData.answer;
-                  if (nodeData.sources) sources = nodeData.sources;
-                  if (nodeData.chart) chart = nodeData.chart;
-                  if (nodeData.confidence) confidence = nodeData.confidence;
-
-                  updateLastMessage({
-                    content: fullContent || `正在处理: ${data.node}...`,
-                    sources,
-                    chart,
-                    confidence,
-                    steps,
-                    loading: !fullContent,
-                  });
-                }
-              } catch {}
-            }
-          }
-        }
-      }
-
-      // Final update
-      updateLastMessage({
-        content: fullContent || '抱歉，无法生成回答。',
-        sources,
-        chart,
-        confidence,
-        steps,
-        loading: false,
+      await streamQuestion(text, conversationId ?? undefined, {
+        onStep: (step) => updateLastMessage({ steps: [...(useChatStore.getState().messages.at(-1)?.steps || []), step] }),
+        onContent: (content) => { updateLastMessage({ content, loading: false }); setEmotion('talking'); },
+        onSources: (sources) => updateLastMessage({ sources }),
+        onChart: (chart) => updateLastMessage({ chart }),
+        onConfidence: (confidence) => updateLastMessage({ confidence }),
+        onDone: () => { setStreaming(false); setEmotion('happy'); setTimeout(() => setEmotion('idle'), 2000); },
+        onError: (err) => { updateLastMessage({ content: `Error: ${err}`, loading: false }); setStreaming(false); setEmotion('idle'); },
       });
-
-    } catch (err) {
-      updateLastMessage({
-        content: '请求失败，请检查网络或 API 配置。',
-        loading: false,
-      });
-    } finally {
+    } catch {
+      updateLastMessage({ content: 'Connection failed. Please check the backend.', loading: false });
       setStreaming(false);
+      setEmotion('idle');
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const t = input.trim();
+      if (t) { setInput(''); sendMsg(t); }
     }
   };
 
   return (
-    <div className="flex flex-col h-screen bg-white">
-      {/* Header */}
-      <div className="border-b px-6 py-3 flex items-center justify-between bg-white">
-        <div className="flex items-center gap-2">
-          <MessageSquare size={20} className="text-blue-600" />
-          <h1 className="text-lg font-semibold">AI 智能问答</h1>
+    <div style={{ display: 'flex', height: '100%' }}>
+      {/* History rail */}
+      <div className="hist-rail" style={{
+        width: 200, borderRight: '1.5px solid var(--line)',
+        display: 'flex', flexDirection: 'column', background: 'rgba(232, 220, 200, 0.5)',
+      }}>
+        <div style={{
+          padding: '14px 14px 10px', borderBottom: '1.5px solid var(--line)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <span className="font-mono" style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--mid)' }}>
+            HISTORY
+          </span>
+          <button
+            onClick={() => clearMessages()}
+            style={{ width: 26, height: 26, border: '1.5px solid var(--line)', background: 'var(--cream)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Plus size={14} color="var(--orange)" />
+          </button>
         </div>
-        <button
-          onClick={clearMessages}
-          className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <Plus size={16} />
-          新对话
-        </button>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+          {conversations.map(c => (
+            <div
+              key={c.id}
+              onClick={() => useChatStore.getState().setConversationId(c.id)}
+              className="animate-slide-in"
+              style={{
+                padding: '10px 14px', cursor: 'pointer',
+                borderLeft: c.id === conversationId ? '3px solid var(--orange)' : '3px solid transparent',
+                background: c.id === conversationId ? 'rgba(212, 82, 26, 0.08)' : 'transparent',
+              }}
+            >
+              <div style={{ fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 3 }}>
+                {c.title}
+              </div>
+              <div className="font-mono" style={{ fontSize: 9, color: 'var(--dim)' }}>
+                {c.message_count} msgs
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto">
-        {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-400">
-            <MessageSquare size={48} className="mb-4" />
-            <h2 className="text-xl font-medium mb-2">AI 智能问答系统</h2>
-            <p className="text-sm">试试问：系统整体情况怎么样？资金还能撑多久？</p>
-            <div className="mt-6 grid grid-cols-2 gap-3 max-w-md">
-              {[
-                '系统整体数据情况',
-                '最近有多少产品到期',
-                '资金还能撑多久',
-                '用户增长趋势如何',
-              ].map((q) => (
-                <button
-                  key={q}
-                  onClick={() => handleSend(q)}
-                  className="px-4 py-2 text-sm text-left border rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  {q}
-                </button>
-              ))}
+      {/* Chat body */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div ref={msgsRef} style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {messages.length === 0 ? (
+            <EmptyState onSuggest={sendMsg} />
+          ) : (
+            messages.map(m => <MessageBubble key={m.id} message={m} />)
+          )}
+        </div>
+
+        {/* Input */}
+        <div style={{
+          padding: '14px 24px', borderTop: '2px solid var(--ink)',
+          display: 'flex', alignItems: 'flex-end', gap: 10, background: 'var(--cream)',
+        }}>
+          <div style={{ flex: 1 }}>
+            <div className="font-mono" style={{ fontSize: 9, color: 'var(--orange)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 }}>
+              // INPUT QUERY
+            </div>
+            <div style={{ border: '2px solid var(--ink)', display: 'flex', alignItems: 'flex-end' }}>
+              <textarea
+                value={input}
+                onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px'; }}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask anything about your data..."
+                disabled={streaming}
+                className="font-mono"
+                style={{
+                  flex: 1, background: 'none', border: 'none', outline: 'none',
+                  padding: '10px 12px', fontSize: 13, color: 'var(--ink)',
+                  resize: 'none', maxHeight: 100, lineHeight: 1.5,
+                }}
+              />
+              <button
+                onClick={() => { const t = input.trim(); if (t) { setInput(''); sendMsg(t); } }}
+                disabled={streaming || !input.trim()}
+                style={{
+                  width: 44, height: 44, border: 'none', cursor: 'pointer',
+                  background: streaming ? 'var(--dim)' : 'var(--orange)', color: 'var(--cream)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 0.2s', flexShrink: 0,
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                </svg>
+              </button>
             </div>
           </div>
-        ) : (
-          <div className="max-w-3xl mx-auto">
-            {messages.map((msg) => (
-              <ChatMessage key={msg.id} message={msg} />
-            ))}
-            <div ref={bottomRef} />
-          </div>
-        )}
+        </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Input */}
-      <ChatInput onSend={handleSend} disabled={streaming} />
+function EmptyState({ onSuggest }: { onSuggest: (q: string) => void }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 28 }}>
+      <div style={{ position: 'relative', width: 160, height: 160 }}>
+        {[60, 100, 140].map((size, i) => (
+          <div key={i} style={{
+            position: 'absolute', borderRadius: '50%', border: '1.5px solid rgba(212, 82, 26, 0.3)',
+            width: size, height: size, left: '50%', top: '50%',
+            transform: 'translate(-50%, -50%)', animation: `expand 4s ease-in-out infinite ${i * 0.5}s`,
+          }} />
+        ))}
+        <div className="font-display" style={{
+          position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
+          fontSize: 18, letterSpacing: 3, color: 'var(--orange)',
+        }}>◈</div>
+      </div>
+      <h2 className="font-display" style={{ fontSize: 36, letterSpacing: 6, color: 'var(--ink)' }}>READY FOR LAUNCH</h2>
+      <p className="font-mono" style={{ fontSize: 11, color: 'var(--dim)', letterSpacing: 1 }}>// SELECT A MISSION OR TYPE YOUR QUERY</p>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 500 }}>
+        {SUGGESTED.map((q, i) => (
+          <button key={i} onClick={() => onSuggest(q)} className="font-mono animate-card-in"
+            style={{ padding: '8px 14px', border: '1.5px solid var(--line)', background: 'var(--cream)', color: 'var(--mid)', fontSize: 11, cursor: 'pointer', transition: 'all 0.2s', animationDelay: `${i * 0.1}s` }}
+            onMouseEnter={e => { (e.target as HTMLElement).style.borderColor = 'var(--orange)'; (e.target as HTMLElement).style.color = 'var(--orange)'; }}
+            onMouseLeave={e => { (e.target as HTMLElement).style.borderColor = 'var(--line)'; (e.target as HTMLElement).style.color = 'var(--mid)'; }}>
+            {q}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

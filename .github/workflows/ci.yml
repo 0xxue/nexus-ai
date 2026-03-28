@@ -58,7 +58,8 @@ jobs:
         run: ruff check app/ --select E,F,W --ignore E501
 
       - name: Type check (imports)
-        run: python -c "
+        run: |
+          python -c "
           from app.core.langgraph.state import QAState;
           from app.models import Base, User, Conversation, Message, BotMessage, BotScene, BotPreference;
           from app.services.bot.brain import think, BOT_PERSONAS;
@@ -84,7 +85,8 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
           JWT_SECRET: test-secret
           DEEPSEEK_API_KEY: test
-        run: python -c "
+        run: |
+          python << 'PYEOF'
           import asyncio
           from app.services.database import init_db, _session_factory
           async def check():
@@ -92,12 +94,12 @@ jobs:
               from app.services.database import _session_factory as sf
               async with sf() as s:
                   from sqlalchemy import text
-                  r = await s.execute(text(\"SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename\"))
+                  r = await s.execute(text("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename"))
                   tables = [row[0] for row in r]
-                  assert len(tables) >= 13, f'Expected 13+ tables, got {len(tables)}: {tables}'
-                  print(f'OK: {len(tables)} tables')
+                  assert len(tables) >= 13, f"Expected 13+ tables, got {len(tables)}: {tables}"
+                  print(f"OK: {len(tables)} tables")
           asyncio.run(check())
-          "
+          PYEOF
 
   # ══════════════════════════════════════
   # Frontend — lint + build

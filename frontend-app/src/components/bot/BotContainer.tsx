@@ -52,18 +52,20 @@ export function BotContainer() {
 
   // ── Trail Particles ──
   const emitTrail = useCallback((cx: number, cy: number) => {
-    const count = 3 + Math.floor(Math.random() * 4);
-    const colors = ['var(--orange)', 'var(--cream)', 'var(--warm)', 'var(--amber)'];
+    const count = 5 + Math.floor(Math.random() * 6);
+    const colors = ['#d4521a', '#e8652a', '#f0e8d8', '#ddd0b8', '#c8420a', '#ff6b35'];
     for (let i = 0; i < count; i++) {
       const p = document.createElement('div');
-      const sz = 3 + Math.random() * 5;
-      p.style.cssText = `position:fixed;width:${sz}px;height:${sz}px;left:${cx + (Math.random() - 0.5) * 30}px;top:${cy + (Math.random() - 0.5) * 30}px;background:${colors[Math.floor(Math.random() * colors.length)]};pointer-events:none;z-index:998;opacity:0.8;transition:all ${0.5 + Math.random() * 0.4}s ease-out;`;
+      const sz = 4 + Math.random() * 8;
+      const spread = 40;
+      const glow = colors[Math.floor(Math.random() * colors.length)];
+      p.style.cssText = `position:fixed;width:${sz}px;height:${sz}px;left:${cx + (Math.random() - 0.5) * spread}px;top:${cy + (Math.random() - 0.5) * spread}px;background:${glow};box-shadow:0 0 ${sz}px ${glow};border-radius:${Math.random() > 0.5 ? '50%' : '0'};pointer-events:none;z-index:998;opacity:0.9;transition:all ${0.6 + Math.random() * 0.5}s ease-out;`;
       document.body.appendChild(p);
       requestAnimationFrame(() => {
         p.style.opacity = '0';
-        p.style.transform = `translateY(-${10 + Math.random() * 15}px) scale(0.2)`;
+        p.style.transform = `translateY(-${15 + Math.random() * 25}px) scale(0.1) rotate(${Math.random() * 180}deg)`;
       });
-      setTimeout(() => p.remove(), 900);
+      setTimeout(() => p.remove(), 1100);
     }
   }, []);
 
@@ -546,6 +548,7 @@ export function BotContainer() {
   // ── Drag (only starts after moving 5px threshold) ──
   const dragStartPos = useRef({ x: 0, y: 0 });
   const isDragStarted = useRef(false);
+  const dragTrailThrottle = useRef<number>(0);
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
@@ -569,6 +572,11 @@ export function BotContainer() {
       }
 
       if (isDragStarted.current) {
+        // Emit trail particles while dragging (throttled)
+        if (!dragTrailThrottle.current || Date.now() - dragTrailThrottle.current > 50) {
+          dragTrailThrottle.current = Date.now();
+          emitTrail(ev.clientX, ev.clientY);
+        }
         setPos({
           x: Math.max(10, Math.min(window.innerWidth - size - 10, ev.clientX - dragOffset.current.x)),
           y: Math.max(10, Math.min(window.innerHeight - size - 10, ev.clientY - dragOffset.current.y)),
@@ -614,13 +622,22 @@ export function BotContainer() {
     <>
       {/* Beacon (target pulse animation) */}
       {beacon.show && (
-        <div style={{
-          position: 'fixed', left: beacon.x - 20, top: beacon.y - 20,
-          width: 40, height: 40, borderRadius: '50%',
-          border: '2px solid var(--orange)', zIndex: 997,
-          animation: 'expand 1s ease-in-out infinite',
-          pointerEvents: 'none', opacity: 0.6,
-        }} />
+        <>
+          <div style={{
+            position: 'fixed', left: beacon.x - 25, top: beacon.y - 25,
+            width: 50, height: 50, borderRadius: '50%',
+            border: '2px solid var(--orange)', zIndex: 997,
+            animation: 'expand 0.8s ease-in-out infinite',
+            pointerEvents: 'none', opacity: 0.7,
+          }} />
+          <div style={{
+            position: 'fixed', left: beacon.x - 15, top: beacon.y - 15,
+            width: 30, height: 30, borderRadius: '50%',
+            background: 'rgba(212, 82, 26, 0.15)', zIndex: 997,
+            animation: 'expand 0.8s ease-in-out infinite 0.2s',
+            pointerEvents: 'none',
+          }} />
+        </>
       )}
 
       {/* Speech bubble */}

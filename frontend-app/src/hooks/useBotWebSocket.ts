@@ -43,6 +43,7 @@ export function useBotWebSocket() {
 
     ws.onopen = () => {
       console.log('[Bot WS] Connected');
+      (window as any).__botWs = ws; // Expose for Settings persona change
     };
 
     ws.onmessage = (event) => {

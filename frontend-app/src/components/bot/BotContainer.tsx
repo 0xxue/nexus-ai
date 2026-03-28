@@ -119,9 +119,11 @@ export function BotContainer() {
     return () => clearInterval(interval);
   }, [dragging, chatOpen, emotion]);
 
-  // ── Click Handler (single = poke, double = open chat) ──
+  // ── Click Handler: single = toggle chat, double = poke ──
+  const wasDragging = useRef(false);
   const handleClick = useCallback((e: React.MouseEvent) => {
-    if (dragging) return;
+    // Ignore if was dragging
+    if (wasDragging.current) { wasDragging.current = false; return; }
     if (Math.abs(e.movementX) + Math.abs(e.movementY) > 3) return;
 
     clickCount.current++;
@@ -129,51 +131,65 @@ export function BotContainer() {
 
     clickTimer.current = setTimeout(() => {
       if (clickCount.current >= 2) {
-        // Double click → toggle chat panel
-        setChatOpen(prev => !prev);
+        // Double click → poke (touch)
+        sendPoke();
+        setEmotion('surprised');
+        setTimeout(() => setEmotion('idle'), 1500);
       } else {
-        // Single click → poke or toggle chat
-        if (chatOpen) {
-          // Already open, just poke
-          sendPoke();
-          setEmotion('surprised');
-          setTimeout(() => setEmotion('idle'), 1500);
-        } else {
-          // Open chat
-          setChatOpen(true);
-        }
+        // Single click → toggle chat panel
+        setChatOpen(prev => !prev);
       }
       clickCount.current = 0;
     }, 250);
-  }, [dragging, chatOpen, sendPoke, setEmotion]);
+  }, [sendPoke, setEmotion]);
 
-  // ── Drag ──
+  // ── Drag (only starts after moving 5px threshold) ──
+  const dragStartPos = useRef({ x: 0, y: 0 });
+  const isDragStarted = useRef(false);
+
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
-    setDragging(true);
+    dragStartPos.current = { x: e.clientX, y: e.clientY };
+    isDragStarted.current = false;
+    wasDragging.current = false;
     const rect = (e.target as HTMLElement).closest('[data-bot-container]')!.getBoundingClientRect();
     dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    e.preventDefault();
-  }, []);
 
-  useEffect(() => {
-    if (!dragging) return;
-    const onMove = (e: MouseEvent) => {
-      setPos({
-        x: Math.max(10, Math.min(window.innerWidth - size - 10, e.clientX - dragOffset.current.x)),
-        y: Math.max(10, Math.min(window.innerHeight - size - 10, e.clientY - dragOffset.current.y)),
-      });
+    const onMove = (ev: MouseEvent) => {
+      const dx = Math.abs(ev.clientX - dragStartPos.current.x);
+      const dy = Math.abs(ev.clientY - dragStartPos.current.y);
+
+      // Only start drag after 5px movement
+      if (!isDragStarted.current && dx + dy > 5) {
+        isDragStarted.current = true;
+        wasDragging.current = true;
+        setDragging(true);
+        setChatOpen(false);
+        setEmotion('surprised');
+      }
+
+      if (isDragStarted.current) {
+        setPos({
+          x: Math.max(10, Math.min(window.innerWidth - size - 10, ev.clientX - dragOffset.current.x)),
+          y: Math.max(10, Math.min(window.innerHeight - size - 10, ev.clientY - dragOffset.current.y)),
+        });
+      }
     };
+
     const onUp = () => {
-      setDragging(false);
-      setEmotion('idle');
-      (window as any).__botSay?.('Put me down~ ✦', 2000);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      if (isDragStarted.current) {
+        setDragging(false);
+        setEmotion('idle');
+        (window as any).__botSay?.('Put me down~ ✦', 2000);
+      }
     };
-    setEmotion('surprised');
+
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-  }, [dragging, size, setEmotion]);
+    e.preventDefault();
+  }, [size, setEmotion]);
 
   // ── Float Animation ──
   const floatPhase = useRef(0);

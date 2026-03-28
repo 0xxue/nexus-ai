@@ -26,7 +26,7 @@ import structlog
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
 from app.services.bot.ws_manager import bot_ws_manager
-from app.services.bot.brain import think as bot_think
+from app.services.bot.brain import think as bot_think, get_persona, set_persona, BOT_PERSONAS
 from app.services.bot.emotion import get_emotion
 
 logger = structlog.get_logger()
@@ -97,11 +97,20 @@ async def bot_websocket(ws: WebSocket, token: str = Query(default="")):
     # Connect
     state = await bot_ws_manager.connect(user_id, user.role, ws)
 
-    # Send connected message
-    await bot_ws_manager.push(user_id, {
+    # Helper: send directly to this WebSocket (not via manager lookup)
+    async def send(msg: dict):
+        try:
+            await ws.send_json(msg)
+        except Exception:
+            pass
+
+    # Send connected message with persona info
+    persona = get_persona()
+    await send({
         "type": "connected",
         "mode": state.mode,
         "user": {"id": user.id, "role": user.role, "username": user.username},
+        "persona": {"name": persona["name"], "greeting": persona["greeting"]},
     })
 
     try:
@@ -111,7 +120,7 @@ async def bot_websocket(ws: WebSocket, token: str = Query(default="")):
             msg_type = data.get("type", "")
 
             if msg_type == "ping":
-                await bot_ws_manager.push(user_id, {"type": "pong"})
+                await send({"type": "pong"})
 
             elif msg_type == "chat":
                 message = data.get("message", "").strip()
@@ -119,14 +128,14 @@ async def bot_websocket(ws: WebSocket, token: str = Query(default="")):
                     continue
 
                 # Show thinking emotion
-                await bot_ws_manager.push(user_id, {"type": "bot_emotion", "emotion": "thinking"})
+                await send({"type": "bot_emotion", "emotion": "thinking"})
 
                 # Bot thinks (LLM Agent loop)
                 context = {"page": data.get("page"), "mode": state.mode}
                 response = await bot_think(message, user, context)
 
                 # Send response
-                await bot_ws_manager.push(user_id, {
+                await send({
                     "type": "bot_message",
                     "content": response.content,
                     "emotion": response.emotion,
@@ -138,7 +147,7 @@ async def bot_websocket(ws: WebSocket, token: str = Query(default="")):
                 scene = data.get("scene", "")
                 template = SCENE_TEMPLATES.get(scene, {})
                 if template:
-                    await bot_ws_manager.push(user_id, {
+                    await send({
                         "type": "bot_message",
                         "content": template.get("speech", ""),
                         "emotion": template.get("emotion", "idle"),
@@ -150,14 +159,14 @@ async def bot_websocket(ws: WebSocket, token: str = Query(default="")):
                 new_mode = data.get("mode", "B")
                 if new_mode in ("A", "B", "C"):
                     bot_ws_manager.set_mode(user_id, new_mode)
-                    await bot_ws_manager.push(user_id, {
+                    await send({
                         "type": "mode_config",
                         "mode": new_mode,
                     })
 
             elif msg_type == "poke":
                 phrase = random.choice(POKE_RESPONSES)
-                await bot_ws_manager.push(user_id, {
+                await send({
                     "type": "bot_message",
                     "content": phrase,
                     "emotion": "surprised",
@@ -167,14 +176,30 @@ async def bot_websocket(ws: WebSocket, token: str = Query(default="")):
                 # Only respond in companion mode
                 if state.mode == "A":
                     phrase = random.choice(IDLE_PHRASES)
-                    await bot_ws_manager.push(user_id, {
+                    await send({
                         "type": "bot_message",
                         "content": phrase,
                         "emotion": "idle",
                     })
 
+            elif msg_type == "persona_change":
+                persona_id = data.get("persona", "")
+                if persona_id in BOT_PERSONAS:
+                    set_persona(persona_id)
+                    p = get_persona()
+                    await send({
+                        "type": "bot_message",
+                        "content": p["greeting"],
+                        "emotion": "happy",
+                        "action": "wave",
+                    })
+                    await send({
+                        "type": "persona_changed",
+                        "persona": {"name": p["name"], "personality": p["personality"]},
+                    })
+
     except WebSocketDisconnect:
-        await bot_ws_manager.disconnect(user_id)
+        await bot_ws_manager.disconnect(user_id, ws)
     except Exception as e:
         logger.error("Bot WS error", user_id=user_id, error=str(e))
-        await bot_ws_manager.disconnect(user_id)
+        await bot_ws_manager.disconnect(user_id, ws)

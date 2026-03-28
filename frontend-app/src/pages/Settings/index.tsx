@@ -4,7 +4,7 @@ import { useThemeStore } from '../../store/theme';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { toast } from '../../components/ui/Toast';
-import { Bot, Cpu, Palette, Globe, Shield } from 'lucide-react';
+import { Bot, Cpu, Palette, Globe, Shield, User } from 'lucide-react';
 
 const LLM_MODELS = [
   { value: 'deepseek/deepseek-chat', label: 'DeepSeek Chat', desc: 'Fast & cheap' },
@@ -21,6 +21,12 @@ const LANGUAGES = [
   { value: 'ja', label: '日本語' },
 ];
 
+const PERSONAS = [
+  { id: 'crab_boss', label: '蟹老板', emoji: '🦀', desc: 'Cheerful, humorous, business-minded crab' },
+  { id: 'nexus', label: 'Nexus', emoji: '🤖', desc: 'Professional, concise, friendly assistant' },
+  { id: 'buddy', label: 'Buddy', emoji: '🎉', desc: 'Casual, talkative, lots of emoji' },
+];
+
 export default function SettingsPage() {
   const { enabled: botEnabled, setEnabled: setBotEnabled, size: botSize, setSize: setBotSize } = useBotStore();
   const { theme } = useThemeStore();
@@ -28,6 +34,18 @@ export default function SettingsPage() {
   const [model, setModel] = useState(() => localStorage.getItem('settings_model') || 'deepseek/deepseek-chat');
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('settings_api_key') || '');
   const [language, setLanguage] = useState(() => localStorage.getItem('settings_language') || 'auto');
+  const [persona, setPersona] = useState(() => localStorage.getItem('settings_persona') || 'crab_boss');
+
+  const handlePersonaChange = (id: string) => {
+    setPersona(id);
+    localStorage.setItem('settings_persona', id);
+    // Send persona change via WebSocket
+    const ws = (window as any).__botWs;
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'persona_change', persona: id }));
+    }
+    toast(`Persona: ${PERSONAS.find(p => p.id === id)?.label}`, 'success');
+  };
 
   const handleSaveModel = () => {
     localStorage.setItem('settings_model', model);
@@ -115,6 +133,27 @@ export default function SettingsPage() {
           <span className="font-mono" style={{ fontSize: 10, color: 'var(--dim)' }}>
             Dark mode coming soon
           </span>
+        </div>
+      </SettingSection>
+
+      {/* Bot Persona */}
+      <SettingSection icon={User} title="BOT PERSONA">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {PERSONAS.map(p => (
+            <label key={p.id} style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+              border: `2px solid ${persona === p.id ? 'var(--orange)' : 'var(--line)'}`,
+              background: persona === p.id ? 'rgba(212, 82, 26, 0.06)' : 'transparent',
+              cursor: 'pointer', transition: 'all 0.2s',
+            }}>
+              <input type="radio" name="persona" value={p.id} checked={persona === p.id}
+                onChange={() => handlePersonaChange(p.id)} style={{ accentColor: 'var(--orange)' }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{p.emoji} {p.label}</div>
+                <div className="font-mono" style={{ fontSize: 10, color: 'var(--dim)' }}>{p.desc}</div>
+              </div>
+            </label>
+          ))}
         </div>
       </SettingSection>
 

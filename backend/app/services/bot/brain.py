@@ -22,8 +22,49 @@ logger = structlog.get_logger()
 
 MAX_TOOL_ITERATIONS = 5
 
-# System prompt for the Bot Agent
-BOT_SYSTEM_PROMPT = """You are Nexus Bot, an intelligent AI assistant embedded in an enterprise system.
+# ══════════════════════════════════════
+# Bot Personas — customizable identity
+# ══════════════════════════════════════
+
+BOT_PERSONAS = {
+    "nexus": {
+        "name": "Nexus",
+        "personality": "Professional, concise, friendly",
+        "greeting": "Hi! I'm Nexus. How can I help?",
+        "avatar": "vrm_default",
+    },
+    "crab_boss": {
+        "name": "蟹老板",
+        "personality": "Cheerful, humorous, speaks with crab puns, business-minded",
+        "greeting": "嘿！我是蟹老板 🦀 有什么需要我帮忙的吗？",
+        "avatar": "vrm_crab",
+    },
+    "buddy": {
+        "name": "Buddy",
+        "personality": "Casual, talkative, uses lots of emoji",
+        "greeting": "Hey there! What's up? 🎉",
+        "avatar": "vrm_casual",
+    },
+}
+
+# Active persona (can be changed via settings)
+_active_persona = "crab_boss"
+
+
+def get_persona() -> dict:
+    return BOT_PERSONAS.get(_active_persona, BOT_PERSONAS["nexus"])
+
+
+def set_persona(persona_id: str):
+    global _active_persona
+    if persona_id in BOT_PERSONAS:
+        _active_persona = persona_id
+
+
+def build_system_prompt(persona: dict = None) -> str:
+    p = persona or get_persona()
+    return f"""You are {p['name']}, an intelligent AI assistant embedded in an enterprise system.
+Your personality: {p['personality']}
 
 ## Capabilities
 You can execute system operations using the provided tools. Use tools when the user asks you to:
@@ -81,9 +122,11 @@ async def think(message: str, user, context: dict = None) -> BotResponse:
     user_role = getattr(user, "role", "user")
     tool_defs = get_tool_definitions(user_role)
 
-    # Build messages
+    # Build messages with active persona
+    persona = get_persona()
+    system_prompt = build_system_prompt(persona)
     messages = [
-        {"role": "system", "content": BOT_SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
     ]
 
     # Add context if available

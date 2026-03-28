@@ -44,25 +44,21 @@ class BotWebSocketManager:
 
     async def connect(self, user_id: str, role: str, ws: WebSocket) -> ConnectionState:
         """Accept and register a new WebSocket connection."""
-        # Close existing connection for this user (only 1 active per user)
-        if user_id in self.connections:
-            await self.disconnect(user_id)
-
+        # Just replace — don't close old connection (let it die naturally via receive timeout)
         await ws.accept()
         state = ConnectionState(ws, user_id, role)
         self.connections[user_id] = state
         logger.info("Bot WS connected", user_id=user_id, role=role, total=len(self.connections))
         return state
 
-    async def disconnect(self, user_id: str):
-        """Remove and close a connection."""
-        state = self.connections.pop(user_id, None)
+    async def disconnect(self, user_id: str, ws: WebSocket = None):
+        """Remove connection. Only removes if ws matches (prevents removing newer connection)."""
+        state = self.connections.get(user_id)
         if state:
-            try:
-                await state.ws.close()
-            except Exception:
-                pass
-            logger.info("Bot WS disconnected", user_id=user_id, total=len(self.connections))
+            # Only remove if it's the same ws, or ws not specified
+            if ws is None or state.ws is ws:
+                self.connections.pop(user_id, None)
+                logger.info("Bot WS disconnected", user_id=user_id, total=len(self.connections))
 
     async def push(self, user_id: str, message: dict) -> bool:
         """Send a message to a specific user. Returns False if not connected."""

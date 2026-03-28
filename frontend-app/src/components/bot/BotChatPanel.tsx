@@ -31,9 +31,22 @@ interface Props {
 }
 
 export function BotChatPanel({ open, onClose, onSend, botPos, botSize }: Props) {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: 'welcome', role: 'bot', content: "Hi! I'm Nexus Bot. Ask me anything or tell me to do something!", timestamp: Date.now() },
-  ]);
+  const [botName, setBotName] = useState('NEXUS BOT');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+
+  // Listen for connected message to get persona greeting
+  useEffect(() => {
+    return onBotMessage((msg: BotMessage) => {
+      if (msg.type === 'connected' && (msg as any).persona) {
+        const p = (msg as any).persona;
+        setBotName(p.name?.toUpperCase() || 'NEXUS BOT');
+        setMessages([{ id: 'welcome', role: 'bot', content: p.greeting || "Hi! Ask me anything!", timestamp: Date.now() }]);
+      }
+      if (msg.type === 'persona_changed' && (msg as any).persona) {
+        setBotName((msg as any).persona.name?.toUpperCase() || 'NEXUS BOT');
+      }
+    });
+  }, []);
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -94,7 +107,7 @@ export function BotChatPanel({ open, onClose, onSend, botPos, botSize }: Props) 
         background: 'var(--paper)',
       }}>
         <span className="font-display" style={{ fontSize: 14, letterSpacing: 2 }}>
-          NEXUS BOT
+          {botName}
         </span>
         <div style={{ display: 'flex', gap: 4 }}>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>

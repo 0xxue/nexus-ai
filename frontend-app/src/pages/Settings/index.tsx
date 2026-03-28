@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useBotStore } from '../../store/bot';
+import { useBotStore } from '@nexus/ai-bot';
 import { useThemeStore } from '../../store/theme';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';

@@ -10,7 +10,7 @@
  * - Some languages have limited support
  */
 
-import type { VoiceProvider, VoiceTTSOptions } from '../../../types/bot';
+import type { VoiceProvider, VoiceTTSOptions } from '../types';
 
 // Cross-browser SpeechRecognition
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;

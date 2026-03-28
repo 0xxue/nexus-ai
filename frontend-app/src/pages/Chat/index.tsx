@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useChatStore } from '../../store/chat';
-import { useBotStore } from '../../store/bot';
+import { useBotStore } from '@nexus/ai-bot';
 import { streamQuestion, getConversations, getConversation, getConversationSummary, deleteConversation } from '../../api/qa';
 import { MessageBubble } from './MessageBubble';
 import { Plus, Trash2 } from 'lucide-react';
 import { toast } from '../../components/ui/Toast';
-import { botEngine } from '../../hooks/useBotEngine';
+import { botEngine } from '@nexus/ai-bot';
 import type { Message } from '../../types';
 
 const SUGGESTED = [

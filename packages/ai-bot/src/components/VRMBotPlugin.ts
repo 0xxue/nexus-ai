@@ -18,7 +18,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils, VRMExpressionPresetName } from '@pixiv/three-vrm';
 import type { VRM } from '@pixiv/three-vrm';
-import type { BotPlugin, BotEmotion, BotAction } from '../../types/bot';
+import type { BotPlugin, BotEmotion, BotAction } from '../types';
 
 export function createVRMBot(modelUrl = '/model.vrm'): BotPlugin {
   let renderer: THREE.WebGLRenderer | null = null;

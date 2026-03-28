@@ -10,19 +10,13 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { onBotMessage, type BotMessage } from '../../hooks/useBotWebSocket';
-import { useBotVoice } from '../../hooks/useBotVoice';
-import { useBotStore } from '../../store/bot';
+import { onBotMessage, type BotMessage } from '../hooks/useBotWebSocket';
+import { useBotVoice } from '../hooks/useBotVoice';
+import { useBotStore, type BotChatMessage } from '../store';
+import { useBotConfig } from '../BotProvider';
 import { X, Send, Mic, MicOff, VolumeX } from 'lucide-react';
 
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'bot';
-  content: string;
-  emotion?: string;
-  tools?: Array<{ tool: string; success: boolean }>;
-  timestamp: number;
-}
+type ChatMessage = BotChatMessage;
 
 interface Props {
   open: boolean;
@@ -33,32 +27,31 @@ interface Props {
 }
 
 export function BotChatPanel({ open, onClose, onSend, botPos, botSize }: Props) {
-  const [botName, setBotName] = useState('CLAWFORD');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const config = useBotConfig();
+  const { chatMessages: messages, addChatMessage, setChatMessages: setMessages, botName, setBotName } = useBotStore();
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const waitingForReply = useRef(false); // Track if we're expecting a reply
-  const historyLoaded = useRef(false);
+  const waitingForReply = useRef(false);
 
   // Voice system
   const handleVoiceMessage = useCallback((text: string) => {
-    // Voice STT result → same as typing + sending
-    setMessages(prev => [...prev, { id: `user-${Date.now()}`, role: 'user', content: text, timestamp: Date.now() }]);
+    addChatMessage({ id: `user-${Date.now()}`, role: 'user', content: text, timestamp: Date.now() });
     waitingForReply.current = true;
     onSend(text);
-  }, [onSend]);
+  }, [onSend, addChatMessage]);
 
   const voice = useBotVoice(handleVoiceMessage);
   const lastBotMsg = useRef<string>('');
+  const historyLoaded = useRef(false);
 
-  // Load persisted messages on first open
+  // Load persisted messages from DB (only once, only if store is empty)
   useEffect(() => {
-    if (!open || historyLoaded.current) return;
+    if (historyLoaded.current || messages.length > 0) return;
     historyLoaded.current = true;
 
-    const token = localStorage.getItem('token');
-    fetch('/api/v1/bot/messages?limit=20', {
+    const token = config.getToken();
+    fetch(`${config.apiBase}/messages?limit=20`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then(r => r.json())
@@ -72,15 +65,11 @@ export function BotChatPanel({ open, onClose, onSend, botPos, botSize }: Props) 
             tools: m.tool_calls,
             timestamp: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
           }));
-          setMessages(prev => {
-            // Merge: history first, then any welcome message
-            const welcome = prev.filter(m => m.id === 'welcome');
-            return [...restored, ...welcome];
-          });
+          setMessages(restored);
         }
       })
       .catch(() => {});
-  }, [open]);
+  }, []);
 
   // Listen for WebSocket messages
   useEffect(() => {
@@ -88,39 +77,37 @@ export function BotChatPanel({ open, onClose, onSend, botPos, botSize }: Props) 
       // Persona info
       if (msg.type === 'connected' && (msg as any).persona) {
         const p = (msg as any).persona;
-        setBotName(p.name?.toUpperCase() || 'CLAWFORD');
-        setMessages([{ id: 'welcome', role: 'bot', content: p.greeting || "Hi! Ask me anything!", timestamp: Date.now() }]);
+        useBotStore.getState().setBotName(p.name?.toUpperCase() || 'CLAWFORD');
+        if (useBotStore.getState().chatMessages.length === 0) {
+          useBotStore.getState().addChatMessage({ id: 'welcome', role: 'bot', content: p.greeting || "Hi! Ask me anything!", timestamp: Date.now() });
+        }
       }
       if (msg.type === 'persona_changed' && (msg as any).persona) {
-        setBotName((msg as any).persona.name?.toUpperCase() || 'CLAWFORD');
+        useBotStore.getState().setBotName((msg as any).persona.name?.toUpperCase() || 'CLAWFORD');
       }
 
-      // Only add to chat panel if:
-      // 1. We're waiting for a reply (user sent a message), OR
-      // 2. It's a bot_alert (always show alerts in panel)
       if (msg.type === 'bot_message' && waitingForReply.current && msg.content) {
-        setMessages(prev => [...prev, {
+        useBotStore.getState().addChatMessage({
           id: `bot-${Date.now()}`,
           role: 'bot',
           content: msg.content!,
           emotion: msg.emotion,
           tools: msg.tool_calls,
           timestamp: Date.now(),
-        }]);
+        });
         setThinking(false);
         waitingForReply.current = false;
-        // Auto-speak bot response
         lastBotMsg.current = msg.content!;
       }
 
       if (msg.type === 'bot_alert' && msg.content) {
-        setMessages(prev => [...prev, {
+        useBotStore.getState().addChatMessage({
           id: `alert-${Date.now()}`,
           role: 'bot',
           content: `⚠️ ${msg.content}`,
           emotion: msg.emotion,
           timestamp: Date.now(),
-        }]);
+        });
       }
 
       if (msg.type === 'bot_emotion' && msg.emotion === 'thinking' && waitingForReply.current) {
@@ -152,13 +139,11 @@ export function BotChatPanel({ open, onClose, onSend, botPos, botSize }: Props) 
   const handleSend = useCallback(() => {
     const text = input.trim();
     if (!text || thinking) return;
-    setMessages(prev => [...prev, { id: `user-${Date.now()}`, role: 'user', content: text, timestamp: Date.now() }]);
+    addChatMessage({ id: `user-${Date.now()}`, role: 'user', content: text, timestamp: Date.now() });
     setInput('');
     waitingForReply.current = true;
     onSend(text);
-  }, [input, onSend, thinking]);
-
-  if (!open) return null;
+  }, [input, onSend, thinking, addChatMessage]);
 
   return (
     <div style={{
@@ -167,7 +152,7 @@ export function BotChatPanel({ open, onClose, onSend, botPos, botSize }: Props) 
       top: Math.max(10, Math.min(botPos.y - 350, window.innerHeight - 420)),
       zIndex: 999,
       width: Math.min(320, window.innerWidth - 20), height: 400,
-      display: 'flex', flexDirection: 'column',
+      display: open ? 'flex' : 'none', flexDirection: 'column',
       border: '2px solid var(--ink)', background: 'var(--cream)',
       boxShadow: '6px 6px 0 var(--orange)',
       animation: 'cardIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',

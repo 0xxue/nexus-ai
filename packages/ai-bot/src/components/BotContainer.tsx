@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
-import type { BotEmotion } from '../../types/bot';
-import { useBotStore } from '../../store/bot';
-import { useBotWebSocket } from '../../hooks/useBotWebSocket';
-import { botEngine } from '../../hooks/useBotEngine';
+import type { BotEmotion } from '../types';
+import { useBotStore } from '../store';
+import { useBotConfig } from '../BotProvider';
+import { useBotWebSocket } from '../hooks/useBotWebSocket';
+import { botEngine } from '../hooks/useBotEngine';
 import { BotChatPanel } from './BotChatPanel';
 
 /**
@@ -19,11 +19,25 @@ import { BotChatPanel } from './BotChatPanel';
  * - WebSocket connected to Bot Brain
  */
 
-export function BotContainer() {
+export function BotContainer({ currentPath }: { currentPath?: string } = {}) {
   const { enabled, plugin, size, emotion, setEmotion } = useBotStore();
+  const config = useBotConfig();
   const containerRef = useRef<HTMLDivElement>(null);
   const { sendChat, sendScene, sendPoke } = useBotWebSocket();
-  const location = useLocation();
+  // Use prop or config for route — no react-router dependency
+  const pathname = currentPath ?? config.currentPath ?? window.location.pathname;
+
+  // API helpers using config
+  const configRef = useRef(config);
+  configRef.current = config;
+  const apiHeaders = (): Record<string, string> => {
+    const token = configRef.current.getToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+  const apiBase = config.apiBase;
+  const qaApiBase = config.qaApiBase || '/api/v1/qa';
+  // Base path for non-prefixed endpoints (e.g. /api/v1/stats, /api/v1/kb)
+  const rootApiBase = apiBase.replace(/\/bot$/, '');
 
   // ── Size & Position ──
   const getMobileSize = () => window.innerWidth <= 768 ? 100 : size;
@@ -50,13 +64,13 @@ export function BotContainer() {
   useEffect(() => {
     if (prefsLoaded.current) return;
     prefsLoaded.current = true;
-    const token = localStorage.getItem('token');
-    if (!token && !localStorage.getItem('demo_mode')) {
+    const token = configRef.current.getToken();
+    if (!token) {
       setReady(true);
       return;
     }
-    fetch('/api/v1/bot/preferences', {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    fetch(`${configRef.current.apiBase}/preferences`, {
+      headers: apiHeaders(),
     })
       .then(r => r.json())
       .then((prefs: any) => {
@@ -77,11 +91,11 @@ export function BotContainer() {
   const savePrefs = useCallback((data: Record<string, any>) => {
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      const token = localStorage.getItem('token');
+      const token = configRef.current.getToken();
       if (!token) return;
-      fetch('/api/v1/bot/preferences', {
+      fetch(`${configRef.current.apiBase}/preferences`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', ...apiHeaders() },
         body: JSON.stringify(data),
       }).catch(() => {});
     }, 1000);
@@ -208,7 +222,7 @@ export function BotContainer() {
     // Dynamic scenes — fetch real data
     botEngine.on('welcome', async () => {
       try {
-        const res = await fetch('/api/v1/stats');
+        const res = await fetch(`${configRef.current.apiBase.replace(/\/bot$/, '')}/stats`, { headers: apiHeaders() });
         const stats = await res.json();
         const say = (window as any).__botSay;
         const setE = setEmotionRef.current;
@@ -238,7 +252,7 @@ export function BotContainer() {
     // Dashboard: fly to each card with REAL numbers
     botEngine.on('page:dashboard', async () => {
       try {
-        const res = await fetch('/api/v1/stats');
+        const res = await fetch(`${configRef.current.apiBase.replace(/\/bot$/, '')}/stats`, { headers: apiHeaders() });
         const stats = await res.json();
         const say = (window as any).__botSay;
         const setE = setEmotionRef.current;
@@ -345,10 +359,8 @@ export function BotContainer() {
 
       // Fetch summary from backend
       try {
-        const res = await fetch(`/api/v1/qa/conversations/${data.convId}/summary`, {
-          headers: {
-            ...(localStorage.getItem('token') ? { Authorization: `Bearer ${localStorage.getItem('token')}` } : {}),
-          },
+        const res = await fetch(`${configRef.current.qaApiBase || '/api/v1/qa'}/conversations/${data.convId}/summary`, {
+          headers: apiHeaders(),
         });
         const result = await res.json();
         if (result.summary) {
@@ -418,21 +430,23 @@ export function BotContainer() {
   }, [plugin]);
 
   // ── Scene Detection (page change) ──
-  const prevPath = useRef(location.pathname);
+  const prevPath = useRef(pathname);
   useEffect(() => {
-    if (location.pathname !== prevPath.current) {
-      prevPath.current = location.pathname;
+    if (pathname !== prevPath.current) {
+      prevPath.current = pathname;
+      // Skip scene reaction if chat panel is open (don't interrupt user conversation)
+      if (chatOpen) return;
       const sceneMap: Record<string, string> = {
         '/chat': 'page:chat', '/kb': 'page:kb', '/dashboard': 'page:dashboard',
         '/settings': 'page:settings', '/admin': 'page:settings',
       };
-      const scene = sceneMap[location.pathname];
+      const scene = sceneMap[pathname];
       if (scene) {
         botEngine.emit(scene);
         sendScene(scene);
       }
     }
-  }, [location.pathname, sendScene]);
+  }, [pathname, sendScene, chatOpen]);
 
   // ── Element Click Reactions (Bot reacts to what you interact with) ──
   useEffect(() => {
@@ -536,10 +550,10 @@ export function BotContainer() {
   // ── Page-Aware Idle Behavior ──
   const chatOpenRef = useRef(chatOpen);
   const draggingRef = useRef(dragging);
-  const pathRef = useRef(location.pathname);
+  const pathRef = useRef(pathname);
   chatOpenRef.current = chatOpen;
   draggingRef.current = dragging;
-  pathRef.current = location.pathname;
+  pathRef.current = pathname;
 
   useEffect(() => {
     let count = 0;
@@ -555,7 +569,7 @@ export function BotContainer() {
         // Every 20s: page-specific proactive behavior
         if (count % 4 === 0) {
           // Fetch real data and comment based on current page
-          const statsRes = await fetch('/api/v1/stats');
+          const statsRes = await fetch(`${configRef.current.apiBase.replace(/\/bot$/, '')}/stats`, { headers: apiHeaders() });
           const stats = await statsRes.json();
 
           if (page === '/dashboard' || page === '/') {
@@ -577,7 +591,7 @@ export function BotContainer() {
             ];
             say?.(chatTips[Math.floor(Math.random() * chatTips.length)], 4000);
           } else if (page === '/kb') {
-            const kbRes = await fetch('/api/v1/kb/collections');
+            const kbRes = await fetch(`${configRef.current.apiBase.replace(/\/bot$/, '')}/kb/collections`, { headers: apiHeaders() });
             const kbData = await kbRes.json();
             const collections = kbData.collections || [];
             const kbTips = [

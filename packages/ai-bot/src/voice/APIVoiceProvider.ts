@@ -10,7 +10,7 @@
  * - Any backend TTS provider via the /bot/tts endpoint
  */
 
-import type { VoiceProvider, VoiceTTSOptions } from '../../../types/bot';
+import type { VoiceProvider, VoiceTTSOptions } from '../types';
 
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
@@ -21,13 +21,17 @@ export class APIVoiceProvider implements VoiceProvider {
   private currentSource: AudioBufferSourceNode | null = null;
   private _isSpeaking = false;
   private ttsProvider: string;
+  private apiBase: string;
+  private getToken: () => string | null | undefined;
 
   onResult: ((text: string, isFinal: boolean) => void) | null = null;
   onError: ((error: string) => void) | null = null;
   onSpeakingChange: ((speaking: boolean) => void) | null = null;
 
-  constructor(ttsProvider: 'edge' | 'openai' = 'edge') {
+  constructor(ttsProvider: 'edge' | 'openai' = 'edge', apiBase = '/api/v1/bot', getToken: () => string | null | undefined = () => localStorage.getItem('token')) {
     this.ttsProvider = ttsProvider;
+    this.apiBase = apiBase;
+    this.getToken = getToken;
   }
 
   isAvailable(): boolean {
@@ -75,9 +79,9 @@ export class APIVoiceProvider implements VoiceProvider {
   async speak(text: string, options?: VoiceTTSOptions): Promise<void> {
     this.stopSpeaking();
 
-    const token = localStorage.getItem('token');
+    const token = this.getToken();
     try {
-      const res = await fetch('/api/v1/bot/tts', {
+      const res = await fetch(`${this.apiBase}/tts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

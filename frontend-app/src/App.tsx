@@ -8,7 +8,7 @@ import LoginPage from './pages/Login';
 import AdminPage from './pages/Admin';
 import BotManagePage from './pages/BotManage';
 import { ToastContainer } from './components/ui/Toast';
-import { BotContainer } from './components/bot/BotContainer';
+import { BotProvider, BotContainer } from '@nexus/ai-bot';
 import { GeoLines, DustCanvas } from './components/layout/Background';
 import { MessageSquare, Database, BarChart3, Settings, Shield, LogOut, User, Bot } from 'lucide-react';
 
@@ -198,6 +198,22 @@ function TopStrip() {
    App Root
 ══════════════════════════════════════ */
 
+/** Bot with provider — bridges react-router location to @nexus/ai-bot */
+function BotWrapper() {
+  const location = useLocation();
+  return (
+    <BotProvider
+      wsUrl="/ws/bot"
+      apiBase="/api/v1/bot"
+      qaApiBase="/api/v1/qa"
+      getToken={() => localStorage.getItem('token')}
+      currentPath={location.pathname}
+    >
+      <BotContainer currentPath={location.pathname} />
+    </BotProvider>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -224,7 +240,7 @@ export default function App() {
           </div>
         </div>
       </div>
-      <AuthGuardSilent><BotContainer /></AuthGuardSilent>
+      <AuthGuardSilent><BotWrapper /></AuthGuardSilent>
       <ToastContainer />
     </BrowserRouter>
   );

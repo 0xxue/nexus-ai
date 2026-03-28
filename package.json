@@ -1,0 +1,9 @@
+{
+  "name": "nexus-ai",
+  "private": true,
+  "workspaces": [
+    "frontend-app",
+    "packages/ai-bot",
+    "packages/bot-admin"
+  ]
+}

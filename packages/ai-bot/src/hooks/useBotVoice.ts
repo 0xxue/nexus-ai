@@ -12,9 +12,10 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { VoiceProvider, VoiceConfig } from '../types/bot';
-import { BrowserVoiceProvider } from '../components/bot/voice/BrowserVoiceProvider';
-import { APIVoiceProvider } from '../components/bot/voice/APIVoiceProvider';
+import type { VoiceProvider, VoiceConfig } from '../types';
+import { useBotConfig } from '../BotProvider';
+import { BrowserVoiceProvider } from '../voice/BrowserVoiceProvider';
+import { APIVoiceProvider } from '../voice/APIVoiceProvider';
 
 const DEFAULT_CONFIG: VoiceConfig = {
   enabled: false,
@@ -26,14 +27,15 @@ const DEFAULT_CONFIG: VoiceConfig = {
 };
 
 /** Create a provider instance from config */
-function createProvider(config: VoiceConfig): VoiceProvider {
+function createProvider(config: VoiceConfig, apiBase?: string, getToken?: () => string | null | undefined): VoiceProvider {
   if (config.ttsProvider === 'edge' || config.ttsProvider === 'openai') {
-    return new APIVoiceProvider(config.ttsProvider);
+    return new APIVoiceProvider(config.ttsProvider, apiBase, getToken);
   }
   return new BrowserVoiceProvider();
 }
 
 export function useBotVoice(onMessage?: (text: string) => void) {
+  const botConfig = useBotConfig();
   const [config, setConfig] = useState<VoiceConfig>(() => {
     try {
       const saved = localStorage.getItem('voice_config');
@@ -70,7 +72,7 @@ export function useBotVoice(onMessage?: (text: string) => void) {
   // Initialize/switch provider
   useEffect(() => {
     providerRef.current?.destroy();
-    const provider = createProvider(config);
+    const provider = createProvider(config, botConfig.apiBase, botConfig.getToken);
     providerRef.current = provider;
     setAvailable(provider.isAvailable());
 

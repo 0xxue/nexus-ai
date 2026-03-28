@@ -13,7 +13,7 @@
  *   botEngine.registerScene('page:dashboard', { ... });
  */
 
-import type { BotEmotion, BotAction } from '../types/bot';
+import type { BotEmotion, BotAction } from '../types';
 
 export interface SceneConfig {
   moveTo?: { x: number | string; y: number | string };

@@ -272,6 +272,81 @@ export function BotContainer() {
     }
   }, [location.pathname, sendScene]);
 
+  // ── Element Click Reactions (Bot reacts to what you interact with) ──
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      if (draggingRef.current || isFlying.current) return;
+      const target = e.target as HTMLElement;
+      const say = (window as any).__botSay;
+      const setE = setEmotionRef.current;
+      const fly = flyToRef.current;
+      if (!say || !target) return;
+
+      // Find what was clicked by traversing up
+      const clicked = target.closest('[data-bot-react]') as HTMLElement
+        || target.closest('.stat-cards > div') as HTMLElement
+        || target.closest('.charts-grid > div') as HTMLElement
+        || target.closest('.hist-rail .animate-slide-in') as HTMLElement
+        || target.closest('.kb-left .animate-slide-in') as HTMLElement
+        || target.closest('.nav-item') as HTMLElement;
+
+      if (!clicked) return;
+
+      const rect = clicked.getBoundingClientRect();
+
+      // Stat card clicked
+      if (clicked.closest('.stat-cards')) {
+        const label = clicked.querySelector('.font-mono')?.textContent || '';
+        const value = clicked.querySelector('.font-display:last-child')?.textContent || '';
+        fly(rect.left + rect.width / 2, rect.top - 30);
+        setE('thinking');
+        setTimeout(() => {
+          setE('talking');
+          say(`${label}: ${value}. Want me to analyze this deeper? 🔍`, 4000);
+          setTimeout(() => setE('idle'), 4000);
+        }, 600);
+        return;
+      }
+
+      // Chart clicked
+      if (clicked.closest('.charts-grid')) {
+        const title = clicked.querySelector('.font-display')?.textContent || 'Chart';
+        fly(rect.left + rect.width / 2, rect.top - 30);
+        setE('thinking');
+        setTimeout(() => {
+          say(`Looking at ${title}... I can do deeper analysis if you ask! 📊`, 4000);
+          setE('happy');
+          setTimeout(() => setE('idle'), 4000);
+        }, 600);
+        return;
+      }
+
+      // Conversation history clicked
+      if (clicked.closest('.hist-rail')) {
+        const title = clicked.querySelector('div')?.textContent || 'conversation';
+        setE('happy');
+        say(`Loading "${title.slice(0, 20)}"... 💬`, 2000);
+        setTimeout(() => setE('idle'), 2500);
+        return;
+      }
+
+      // KB collection clicked
+      if (clicked.closest('.kb-left')) {
+        const name = clicked.querySelector('div > div')?.textContent || 'collection';
+        fly(rect.right + 20, rect.top);
+        setE('happy');
+        setTimeout(() => {
+          say(`Opening "${name.slice(0, 20)}"! Upload docs here or I can search them 📂`, 4000);
+          setTimeout(() => setE('idle'), 4000);
+        }, 600);
+        return;
+      }
+    };
+
+    document.addEventListener('click', handleGlobalClick, true);
+    return () => document.removeEventListener('click', handleGlobalClick, true);
+  }, []);
+
   // ── Page-Aware Idle Behavior ──
   const chatOpenRef = useRef(chatOpen);
   const draggingRef = useRef(dragging);

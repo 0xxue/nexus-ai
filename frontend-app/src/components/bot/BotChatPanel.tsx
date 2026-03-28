@@ -26,9 +26,11 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onSend: (message: string) => void;
+  botPos: { x: number; y: number };
+  botSize: number;
 }
 
-export function BotChatPanel({ open, onClose, onSend }: Props) {
+export function BotChatPanel({ open, onClose, onSend, botPos, botSize }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: 'welcome', role: 'bot', content: "Hi! I'm Nexus Bot. Ask me anything or tell me to do something!", timestamp: Date.now() },
   ]);
@@ -75,8 +77,12 @@ export function BotChatPanel({ open, onClose, onSend }: Props) {
 
   return (
     <div style={{
-      position: 'fixed', bottom: 80, right: 20, zIndex: 1002,
-      width: 340, height: 420, display: 'flex', flexDirection: 'column',
+      position: 'fixed',
+      left: Math.max(10, Math.min(botPos.x - 330, window.innerWidth - 340)),
+      top: Math.max(10, Math.min(botPos.y - 350, window.innerHeight - 420)),
+      zIndex: 999,
+      width: Math.min(320, window.innerWidth - 20), height: 400,
+      display: 'flex', flexDirection: 'column',
       border: '2px solid var(--ink)', background: 'var(--cream)',
       boxShadow: '6px 6px 0 var(--orange)',
       animation: 'cardIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',

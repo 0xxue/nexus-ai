@@ -28,10 +28,10 @@ export function useBotWebSocket() {
   const getWsUrl = useCallback(() => {
     const token = localStorage.getItem('token') || '';
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.hostname;
-    // Use port 8000 (or 8001 for dev) for WebSocket
-    const port = import.meta.env.DEV ? '8001' : '8000';
-    return `${protocol}//${host}:${port}/ws/bot?token=${token}`;
+    // In dev: connect through Vite proxy (same host:port as frontend)
+    // In prod: connect to backend directly
+    const host = window.location.host; // includes port (e.g., localhost:5173 in dev)
+    return `${protocol}//${host}/ws/bot?token=${token}`;
   }, []);
 
   const connect = useCallback(() => {

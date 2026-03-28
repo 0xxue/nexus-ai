@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
+import type { BotEmotion } from '../../types/bot';
 import { useBotStore } from '../../store/bot';
 import { useBotWebSocket } from '../../hooks/useBotWebSocket';
 import { BotChatPanel } from './BotChatPanel';
@@ -74,20 +75,38 @@ export function BotContainer() {
   }, []);
 
   // ── Scene Detection (page change → send scene event) ──
+  // ── Scene Detection (page change → bot reacts immediately + sends to server) ──
   const prevPath = useRef(location.pathname);
+  const SCENE_REACTIONS: Record<string, { speech: string; emotion: BotEmotion }> = {
+    '/chat': { speech: "Let's chat! Ask me anything ▶", emotion: 'happy' },
+    '/kb': { speech: 'Knowledge base! Upload docs or search here ◈', emotion: 'idle' },
+    '/dashboard': { speech: 'Dashboard — checking the numbers 📊', emotion: 'thinking' },
+    '/settings': { speech: 'Settings! Customize me here ⚙', emotion: 'idle' },
+  };
   useEffect(() => {
     if (location.pathname !== prevPath.current) {
       prevPath.current = location.pathname;
+
+      // Immediate frontend reaction (no WebSocket needed)
+      const reaction = SCENE_REACTIONS[location.pathname];
+      if (reaction) {
+        setEmotion(reaction.emotion);
+        (window as any).__botSay?.(reaction.speech, 3000);
+        if (reaction.emotion === 'thinking') {
+          setTimeout(() => setEmotion('happy'), 2000);
+        } else {
+          setTimeout(() => setEmotion('idle'), 3000);
+        }
+      }
+
+      // Also send to server (for logging / advanced reactions)
       const sceneMap: Record<string, string> = {
-        '/chat': 'page:chat',
-        '/kb': 'page:kb',
-        '/dashboard': 'page:dashboard',
-        '/settings': 'page:settings',
+        '/chat': 'page:chat', '/kb': 'page:kb', '/dashboard': 'page:dashboard', '/settings': 'page:settings',
       };
       const scene = sceneMap[location.pathname];
       if (scene) sendScene(scene);
     }
-  }, [location.pathname, sendScene]);
+  }, [location.pathname, sendScene, setEmotion]);
 
   // ── Idle Phrases (every 45s in companion mode) ──
   useEffect(() => {
@@ -225,6 +244,8 @@ export function BotContainer() {
         open={chatOpen}
         onClose={() => setChatOpen(false)}
         onSend={sendChat}
+        botPos={pos}
+        botSize={getMobileSize()}
       />
     </>
   );

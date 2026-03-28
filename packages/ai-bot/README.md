@@ -132,7 +132,7 @@ This package expects a backend with these endpoints:
 | `/bot/preferences` | GET/PUT | User bot preferences |
 | `/bot/tts` | POST | Text-to-speech proxy |
 
-See [nexus-ai](https://github.com/your-username/nexus-ai) for a complete backend implementation.
+See [nexus-ai](https://github.com/0xxue/nexus-ai) for a complete backend implementation.
 
 ## License
 

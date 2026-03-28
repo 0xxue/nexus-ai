@@ -61,7 +61,7 @@
 ### 1. Clone
 
 ```bash
-git clone https://github.com/your-username/nexus-ai.git
+git clone https://github.com/0xxue/nexus-ai.git
 cd nexus-ai
 ```
 

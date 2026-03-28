@@ -50,21 +50,61 @@ export function BotContainer() {
   const clickCount = useRef(0);
   const clickTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  // ── Fly To (smooth movement with transition) ──
+  // ── Trail Particles ──
+  const emitTrail = useCallback((cx: number, cy: number) => {
+    const count = 3 + Math.floor(Math.random() * 4);
+    const colors = ['var(--orange)', 'var(--cream)', 'var(--warm)', 'var(--amber)'];
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('div');
+      const sz = 3 + Math.random() * 5;
+      p.style.cssText = `position:fixed;width:${sz}px;height:${sz}px;left:${cx + (Math.random() - 0.5) * 30}px;top:${cy + (Math.random() - 0.5) * 30}px;background:${colors[Math.floor(Math.random() * colors.length)]};pointer-events:none;z-index:998;opacity:0.8;transition:all ${0.5 + Math.random() * 0.4}s ease-out;`;
+      document.body.appendChild(p);
+      requestAnimationFrame(() => {
+        p.style.opacity = '0';
+        p.style.transform = `translateY(-${10 + Math.random() * 15}px) scale(0.2)`;
+      });
+      setTimeout(() => p.remove(), 900);
+    }
+  }, []);
+
+  // ── Beacon (target pulse) ──
+  const [beacon, setBeacon] = useState<{ x: number; y: number; show: boolean }>({ x: 0, y: 0, show: false });
+
+  // ── Fly To (with trail + beacon) ──
   const isFlying = useRef(false);
+  const trailInterval = useRef<ReturnType<typeof setInterval>>();
 
   const flyTo = (x: number, y: number) => {
     setChatOpen(false);
     isFlying.current = true;
-    setFloat({ x: 0, y: 0 }); // Freeze float animation during flight
+    setFloat({ x: 0, y: 0 });
     const s = window.innerWidth <= 768 ? 100 : size;
     const newPos = {
       x: Math.max(10, Math.min(window.innerWidth - s - 10, x - s / 2)),
       y: Math.max(10, Math.min(window.innerHeight - s - 10, y - s / 2)),
     };
+
+    // Show beacon at target
+    setBeacon({ x: newPos.x + s / 2, y: newPos.y + s / 2, show: true });
+
+    // Emit trail particles during flight
+    if (trailInterval.current) clearInterval(trailInterval.current);
+    trailInterval.current = setInterval(() => {
+      const el = document.querySelector('[data-bot-container]');
+      if (el) {
+        const r = el.getBoundingClientRect();
+        emitTrail(r.left + r.width / 2, r.top + r.height / 2);
+      }
+    }, 80);
+
     setPos(newPos);
-    // Resume float after flight animation completes
-    setTimeout(() => { isFlying.current = false; }, 800);
+
+    // Cleanup after flight
+    setTimeout(() => {
+      isFlying.current = false;
+      setBeacon(b => ({ ...b, show: false }));
+      if (trailInterval.current) clearInterval(trailInterval.current);
+    }, 800);
   };
 
   const getDefaultPos = () => {
@@ -218,6 +258,25 @@ export function BotContainer() {
         (window as any).__botSay?.('Dashboard loaded! Click me for details 📊', 3000);
       }
     });
+    // Feature Tour (first-time only)
+    botEngine.registerScene('feature_tour', {
+      steps: [
+        { elementId: '.sidebar-desktop', speech: 'This is the navigation! Switch between Chat, KB, Dashboard and more ▶', emotion: 'talking', duration: 3000 },
+        { elementId: '.hist-rail', speech: 'Your conversation history appears here ◈', emotion: 'talking', duration: 2500 },
+        { elementId: '.chat-input-zone', speech: 'Type your question here and press Enter ▶', emotion: 'talking', duration: 2500 },
+        { speech: 'Tour complete! Click me anytime to chat. Welcome aboard! 🦀', emotion: 'happy', duration: 3000 },
+      ],
+    });
+
+    // Auto-trigger tour on first visit
+    botEngine.on('welcome', () => {
+      if (!localStorage.getItem('bot_tour_done')) {
+        setTimeout(() => {
+          botEngine.emit('feature_tour');
+          localStorage.setItem('bot_tour_done', '1');
+        }, 8000); // After welcome greeting
+      }
+    });
   }, []); // Run once — refs keep handlers fresh
 
   // ── Mount Plugin ──
@@ -346,6 +405,30 @@ export function BotContainer() {
     document.addEventListener('click', handleGlobalClick, true);
     return () => document.removeEventListener('click', handleGlobalClick, true);
   }, []);
+
+  // ── Input Avoidance (Bot moves away when input focused) ──
+  useEffect(() => {
+    const handleFocus = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target || isFlying.current) return;
+      if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') {
+        const rect = target.getBoundingClientRect();
+        const s = getMobileSize();
+        const botCenterX = pos.x + s / 2;
+        const botCenterY = pos.y + s / 2;
+        // Check if bot overlaps with the input area
+        const overlaps = botCenterX > rect.left - 50 && botCenterX < rect.right + 50 &&
+                         botCenterY > rect.top - 80 && botCenterY < rect.bottom + 80;
+        if (overlaps) {
+          // Move to top-right area
+          flyToRef.current(window.innerWidth - 100, 100);
+          (window as any).__botSay?.('I\'ll get out of your way! ✍️', 2000);
+        }
+      }
+    };
+    document.addEventListener('focusin', handleFocus);
+    return () => document.removeEventListener('focusin', handleFocus);
+  }, [pos]);
 
   // ── Page-Aware Idle Behavior ──
   const chatOpenRef = useRef(chatOpen);
@@ -529,6 +612,17 @@ export function BotContainer() {
 
   return (
     <>
+      {/* Beacon (target pulse animation) */}
+      {beacon.show && (
+        <div style={{
+          position: 'fixed', left: beacon.x - 20, top: beacon.y - 20,
+          width: 40, height: 40, borderRadius: '50%',
+          border: '2px solid var(--orange)', zIndex: 997,
+          animation: 'expand 1s ease-in-out infinite',
+          pointerEvents: 'none', opacity: 0.6,
+        }} />
+      )}
+
       {/* Speech bubble */}
       {speechText && (
         <div className="font-mono" style={{

@@ -5,10 +5,11 @@ import KnowledgeBasePage from './pages/KnowledgeBase';
 import DashboardPage from './pages/Dashboard';
 import SettingsPage from './pages/Settings';
 import LoginPage from './pages/Login';
+import AdminPage from './pages/Admin';
 import { ToastContainer } from './components/ui/Toast';
 import { BotContainer } from './components/bot/BotContainer';
 import { GeoLines, DustCanvas } from './components/layout/Background';
-import { MessageSquare, Database, BarChart3, Settings, LogOut, User } from 'lucide-react';
+import { MessageSquare, Database, BarChart3, Settings, Shield, LogOut, User } from 'lucide-react';
 
 /* ══════════════════════════════════════
    NEXUS Sidebar
@@ -20,6 +21,7 @@ function Sidebar() {
     { to: '/kb', icon: Database, label: 'Know' },
     { to: '/dashboard', icon: BarChart3, label: 'Dash' },
     { to: '/settings', icon: Settings, label: 'Set' },
+    { to: '/admin', icon: Shield, label: 'Admin' },
   ];
 
   return (
@@ -187,6 +189,7 @@ export default function App() {
               <Route path="/kb" element={<KnowledgeBasePage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/admin" element={<AdminPage />} />
             </Routes>
           </div>
         </div>

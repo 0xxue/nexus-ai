@@ -50,28 +50,46 @@ export function BotContainer() {
   const clickCount = useRef(0);
   const clickTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  // ── Fly To (smooth movement) ──
-  const flyTo = useCallback((x: number, y: number) => {
-    const s = getMobileSize();
-    setPos({
+  // ── Fly To (smooth movement with transition) ──
+  const isFlying = useRef(false);
+
+  const flyTo = (x: number, y: number) => {
+    setChatOpen(false);
+    isFlying.current = true;
+    setFloat({ x: 0, y: 0 }); // Freeze float animation during flight
+    const s = window.innerWidth <= 768 ? 100 : size;
+    const newPos = {
       x: Math.max(10, Math.min(window.innerWidth - s - 10, x - s / 2)),
       y: Math.max(10, Math.min(window.innerHeight - s - 10, y - s / 2)),
-    });
-  }, [size]);
+    };
+    setPos(newPos);
+    // Resume float after flight animation completes
+    setTimeout(() => { isFlying.current = false; }, 800);
+  };
 
-  const getDefaultPos = useCallback(() => {
-    const s = getMobileSize();
+  const getDefaultPos = () => {
+    const s = window.innerWidth <= 768 ? 100 : size;
     return { x: window.innerWidth - s - 30, y: window.innerHeight - s - 70 };
-  }, [size]);
+  };
 
-  // ── Connect Bot Engine ──
+  // Store latest refs for engine to use (avoids stale closures)
+  const flyToRef = useRef(flyTo);
+  const setEmotionRef = useRef(setEmotion);
+  const pluginRef = useRef(plugin);
+  const sendChatRef = useRef(sendChat);
+  flyToRef.current = flyTo;
+  setEmotionRef.current = setEmotion;
+  pluginRef.current = plugin;
+  sendChatRef.current = sendChat;
+
+  // ── Connect Bot Engine (once) ──
   useEffect(() => {
     botEngine.connect({
-      moveTo: flyTo,
+      moveTo: (x, y) => flyToRef.current(x, y),
       say: (text, duration) => (window as any).__botSay?.(text, duration || 3000),
-      setEmotion,
-      triggerAction: (a) => plugin?.triggerAction?.(a),
-      sendChat,
+      setEmotion: (e) => setEmotionRef.current(e),
+      triggerAction: (a) => pluginRef.current?.triggerAction?.(a),
+      sendChat: (m) => sendChatRef.current(m),
       getDefaultPos,
     });
 
@@ -80,37 +98,127 @@ export function BotContainer() {
       moveTo: { x: '85vw', y: '75vh' },
       speech: "Let's chat! Ask me anything ▶",
       emotion: 'happy',
+      action: 'wave',
     });
     botEngine.registerScene('page:kb', {
-      moveTo: { x: '75vw', y: '35vh' },
-      speech: 'Knowledge base! Upload docs here ◈',
-      emotion: 'idle',
-    });
-    botEngine.registerScene('page:dashboard', {
-      speech: 'Dashboard! Let me check the data...',
-      emotion: 'thinking',
-      steps: [
-        { elementId: '.stat-cards > div:nth-child(1)', speech: 'Here are your user stats 👥', emotion: 'talking', duration: 2500 },
-        { elementId: '.stat-cards > div:nth-child(2)', speech: 'Conversation activity looks good 💬', emotion: 'talking', duration: 2500 },
-        { elementId: '.stat-cards > div:nth-child(3)', speech: 'Messages are flowing! 📨', emotion: 'happy', duration: 2500 },
-        { elementId: '.charts-grid > div:nth-child(1)', speech: 'And here are the trend charts 📊', emotion: 'talking', duration: 3000 },
-        { speech: 'Data overview complete! Need deeper analysis? Just ask 🦀', emotion: 'happy', action: 'nod', duration: 3000 },
-      ],
+      moveTo: { x: '70vw', y: '30vh' },
+      speech: 'Knowledge base! Upload your docs and I can answer questions about them 📚',
+      emotion: 'happy',
     });
     botEngine.registerScene('page:settings', {
-      moveTo: { x: '50vw', y: '40vh' },
-      speech: 'Settings! Customize me here ⚙',
+      moveTo: { x: '50vw', y: '35vh' },
+      speech: 'Settings! You can change my personality, switch models, or resize me ⚙',
       emotion: 'idle',
     });
-
-    // Welcome scene (first load)
     botEngine.registerScene('welcome', {
-      speech: 'Welcome! I\'m Clawford 🦀 Click me to chat, or I\'ll show you around!',
+      speech: '',  // Will be replaced by dynamic greeting
       emotion: 'happy',
       action: 'wave',
       delay: 1500,
     });
-  }, [flyTo, setEmotion, plugin, sendChat, getDefaultPos]);
+
+    // Dynamic scenes — fetch real data
+    botEngine.on('welcome', async () => {
+      try {
+        const res = await fetch('/api/v1/stats');
+        const stats = await res.json();
+        const say = (window as any).__botSay;
+        const setE = setEmotionRef.current;
+
+        setE('happy');
+        say?.(`Hey! I'm Clawford 🦀 Welcome back!`, 3000);
+        await new Promise(r => setTimeout(r, 3500));
+
+        if (stats.total_conversations > 0) {
+          setE('talking');
+          say?.(`You have ${stats.total_conversations} conversations and ${stats.total_messages} messages so far.`, 3500);
+          await new Promise(r => setTimeout(r, 4000));
+        }
+
+        if (stats.total_documents > 0) {
+          say?.(`${stats.total_documents} documents in your knowledge base. Ask me about them!`, 3000);
+          await new Promise(r => setTimeout(r, 3500));
+        }
+
+        setE('idle');
+        say?.('Click me to chat, or navigate around — I\'ll be right here! ◈', 4000);
+      } catch {
+        (window as any).__botSay?.('Hey! I\'m Clawford 🦀 Click me to chat!', 4000);
+      }
+    });
+
+    // Dashboard: fly to each card with REAL numbers
+    botEngine.on('page:dashboard', async () => {
+      try {
+        const res = await fetch('/api/v1/stats');
+        const stats = await res.json();
+        const say = (window as any).__botSay;
+        const setE = setEmotionRef.current;
+        const fly = flyToRef.current;
+
+        setE('thinking');
+        say?.('Dashboard! Let me check the numbers... 📊', 2500);
+        await new Promise(r => setTimeout(r, 3000));
+
+        // Fly to each stat card with real data
+        const cards = document.querySelectorAll('.stat-cards > div');
+
+        if (cards[0]) {
+          const rect = cards[0].getBoundingClientRect();
+          fly(rect.left + rect.width / 2, rect.top);
+          await new Promise(r => setTimeout(r, 800));
+          setE('talking');
+          say?.(`${stats.total_users} users in the system 👥`, 2500);
+          await new Promise(r => setTimeout(r, 3000));
+        }
+
+        if (cards[1]) {
+          const rect = cards[1].getBoundingClientRect();
+          fly(rect.left + rect.width / 2, rect.top);
+          await new Promise(r => setTimeout(r, 800));
+          say?.(`${stats.total_conversations} conversations so far 💬`, 2500);
+          await new Promise(r => setTimeout(r, 3000));
+        }
+
+        if (cards[2]) {
+          const rect = cards[2].getBoundingClientRect();
+          fly(rect.left + rect.width / 2, rect.top);
+          await new Promise(r => setTimeout(r, 800));
+          say?.(`${stats.total_messages} messages exchanged 📨`, 2500);
+          await new Promise(r => setTimeout(r, 3000));
+        }
+
+        if (cards[3]) {
+          const rect = cards[3].getBoundingClientRect();
+          fly(rect.left + rect.width / 2, rect.top);
+          await new Promise(r => setTimeout(r, 800));
+          say?.(`${stats.total_documents} documents in KB 📄`, 2500);
+          await new Promise(r => setTimeout(r, 3000));
+        }
+
+        // Fly to chart
+        const chart = document.querySelector('.charts-grid > div');
+        if (chart) {
+          const rect = chart.getBoundingClientRect();
+          fly(rect.left + rect.width / 2, rect.top);
+          await new Promise(r => setTimeout(r, 800));
+          setE('happy');
+          say?.('Trends looking good! Everything is healthy ✅', 3000);
+          await new Promise(r => setTimeout(r, 3500));
+        }
+
+        // Return to default
+        const def = getDefaultPos();
+        fly(def.x + 90, def.y + 90);
+        setE('happy');
+        say?.('Data briefing complete! Need deeper analysis? Just ask 🦀', 4000);
+        await new Promise(r => setTimeout(r, 4500));
+        setE('idle');
+      } catch {
+        (window as any).__botSay?.('Dashboard loaded! Click me for details 📊', 3000);
+      }
+    });
+  }, []); // Run once — refs keep handlers fresh
 
   // ── Mount Plugin ──
   useEffect(() => {
@@ -160,16 +268,38 @@ export function BotContainer() {
     }
   }, [location.pathname, sendScene]);
 
-  // ── Idle Phrases (every 45s in companion mode) ──
+  // ── Idle Behavior (personality) ──
   useEffect(() => {
+    let count = 0;
     const interval = setInterval(() => {
-      if (!dragging && !chatOpen && emotion === 'idle') {
-        const phrases = ['Standing by~ ✦', 'Need help?', 'Ask me anything! 💬', 'All systems normal ✓', 'Click me to chat!'];
+      if (dragging || chatOpen || isFlying.current) return;
+      count++;
+
+      // Every 30s: random idle action
+      const actions = [
+        () => { setEmotion('happy'); plugin?.triggerAction?.('wave'); setTimeout(() => setEmotion('idle'), 2000); },
+        () => { setEmotion('thinking'); plugin?.triggerAction?.('think'); setTimeout(() => setEmotion('idle'), 3000); },
+        () => { plugin?.triggerAction?.('nod'); },
+        () => { (window as any).__botSay?.('🦀', 1500); },
+      ];
+
+      // Every 20s: say something
+      if (count % 2 === 0) {
+        const phrases = [
+          'Standing by~ ✦', 'Need help with anything?', 'Click me to chat! 💬',
+          'All systems running smooth ✓', 'I can check data for you 📊',
+          'Upload docs to KB and I can answer questions about them!',
+          'Try asking me to create a knowledge base!',
+          'I\'m Clawford, your friendly data crab 🦀',
+        ];
         (window as any).__botSay?.(phrases[Math.floor(Math.random() * phrases.length)], 3000);
+      } else {
+        // Random action (gesture without speech)
+        actions[Math.floor(Math.random() * actions.length)]();
       }
-    }, 45000);
+    }, 20000);
     return () => clearInterval(interval);
-  }, [dragging, chatOpen, emotion]);
+  }, [dragging, chatOpen, plugin, setEmotion]);
 
   // ── Click Handler: single = toggle chat, double = poke ──
   const wasDragging = useRef(false);
@@ -243,15 +373,17 @@ export function BotContainer() {
     e.preventDefault();
   }, [size, setEmotion]);
 
-  // ── Float Animation ──
+  // ── Float Animation (pauses during drag and flight) ──
   const floatPhase = useRef(0);
   const [float, setFloat] = useState({ x: 0, y: 0 });
   useEffect(() => {
     if (dragging) return;
     let raf: number;
     const loop = () => {
-      floatPhase.current += 0.008;
-      setFloat({ x: Math.sin(floatPhase.current) * 4, y: Math.cos(floatPhase.current * 1.3) * 5 });
+      if (!isFlying.current) {
+        floatPhase.current += 0.008;
+        setFloat({ x: Math.sin(floatPhase.current) * 4, y: Math.cos(floatPhase.current * 1.3) * 5 });
+      }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);

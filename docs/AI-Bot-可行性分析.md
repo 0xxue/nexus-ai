@@ -1,270 +1,268 @@
-# AI Bot Agent — Feasibility Analysis
+# AI Bot Agent — 可行性分析报告
 
-> Technical feasibility, risk assessment, cost analysis, and timeline for the AI Bot Agent module.
-
----
-
-## 1. Technical Feasibility
-
-### 1.1 LLM Function Calling (Core Capability)
-
-| Requirement | Feasibility | Evidence |
-|-------------|------------|---------|
-| LLM can decide which tool to call | ✅ Proven | OpenAI/DeepSeek/Claude all support function calling natively |
-| Multi-step tool chains (tool1 → tool2 → answer) | ✅ Proven | Standard AI Agent pattern, LangChain/LangGraph widely used |
-| LLM responds in <5s for tool decisions | ✅ Tested | DeepSeek function calling: ~2-4s, GPT-4o: ~1-3s |
-| Works with local models (Ollama) | ⚠️ Limited | Ollama supports tool calling in llama3/qwen2.5 but less reliable |
-
-**Verdict:** Function calling is mature technology. All major LLM providers support it. DeepSeek is cheapest and fast enough.
-
-### 1.2 WebSocket Real-time Communication
-
-| Requirement | Feasibility | Evidence |
-|-------------|------------|---------|
-| FastAPI WebSocket support | ✅ Native | FastAPI has built-in WebSocket with Starlette |
-| Multi-user connection pool | ✅ Simple | Dict-based connection manager, well-documented pattern |
-| JWT auth over WebSocket | ✅ Standard | Token passed as query param or first message |
-| Reconnect on disconnect | ✅ Frontend | Standard WebSocket reconnect pattern |
-| Background push (server → client) | ✅ Native | WebSocket is bidirectional by design |
-
-**Verdict:** WebSocket is the right choice. HTTP SSE (current QA approach) is one-directional; Bot needs bidirectional for proactive push.
-
-### 1.3 Emotion Engine
-
-| Requirement | Feasibility | Evidence |
-|-------------|------------|---------|
-| Map context → emotion | ✅ Simple | Rule-based mapping, no ML needed |
-| VRM 3D expressions | ✅ Done | Already implemented: 7 emotions, 3 actions via BotPlugin |
-| LLM can set emotion via tool | ✅ Simple | Just another tool in the toolset |
-| Smooth transitions | ✅ Done | VRM plugin handles animation timing |
-
-**Verdict:** Emotion system is already built on frontend. Backend just sends emotion name via WebSocket.
-
-### 1.4 Scene Awareness
-
-| Requirement | Feasibility | Evidence |
-|-------------|------------|---------|
-| Detect page navigation | ✅ Simple | React Router change → send WebSocket event |
-| Configurable scene → response | ✅ Simple | JSON/DB config, template rendering |
-| Dynamic data in scene response | ✅ Existing | Reuse existing data service APIs |
-| Priority-based mode filtering | ✅ Simple | Integer comparison |
-
-**Verdict:** Scene system is pure configuration + routing. No technical risk.
-
-### 1.5 Proactive Alerts
-
-| Requirement | Feasibility | Evidence |
-|-------------|------------|---------|
-| Background scheduled tasks | ✅ Standard | `asyncio.create_task` + `asyncio.sleep` loop, or APScheduler |
-| Check data anomalies | ✅ Existing | Reuse data service + time series anomaly detection (already built) |
-| Push to specific users | ✅ WebSocket | Connection pool lookup by user_id |
-
-**Verdict:** All components exist. Just need to wire them together.
-
-### 1.6 npm Package Distribution
-
-| Requirement | Feasibility | Evidence |
-|-------------|------------|---------|
-| Extract React components into package | ✅ Standard | Vite library mode or tsup bundling |
-| BotPlugin interface for customization | ✅ Done | Interface already defined and working |
-| WebSocket client in package | ✅ Simple | Thin wrapper around native WebSocket |
-| Tree-shakeable | ✅ With bundler | ESM exports + proper package.json |
-
-**Verdict:** Standard npm package workflow. No special challenges.
+> 技术可行性、风险评估、成本分析、时间线评估
 
 ---
 
-## 2. Risk Assessment
+## 一、技术可行性
 
-### High Risk
+### 1.1 LLM Function Calling（核心能力）
 
-| Risk | Impact | Probability | Mitigation |
-|------|--------|-------------|------------|
-| LLM hallucinates tool calls (calls wrong tool) | User data modified incorrectly | Medium | Confirmation prompt for destructive operations (delete, role change). Audit log all tool calls. |
-| LLM infinite loop (keeps calling tools) | Server resource exhaustion | Low | Max 5 iterations hard limit. Timeout per request. |
-| WebSocket memory leak (connections not cleaned) | Server OOM over time | Medium | Heartbeat ping/pong. Auto-disconnect on timeout. Connection limit per user. |
+| 需求 | 可行性 | 依据 |
+|------|--------|------|
+| LLM 自主决定调用哪个工具 | ✅ 成熟 | OpenAI/DeepSeek/Claude 均原生支持 Function Calling |
+| 多步骤工具链（工具1 → 工具2 → 最终回答） | ✅ 成熟 | 标准 AI Agent 模式，LangChain/LangGraph 广泛使用 |
+| 工具决策响应 <5s | ✅ 已验证 | DeepSeek ~2-4s，GPT-4o ~1-3s |
+| 支持本地模型（Ollama） | ⚠️ 有限 | Ollama 的 llama3/qwen2.5 支持但不够稳定 |
 
-### Medium Risk
+**结论：** Function Calling 是成熟技术，所有主流 LLM 厂商均支持。DeepSeek 性价比最高。
 
-| Risk | Impact | Probability | Mitigation |
-|------|--------|-------------|------------|
-| DeepSeek function calling quality | Wrong tool params, missed calls | Medium | Fallback to GPT-4o for complex tool decisions. Unit test each tool. |
-| High latency for multi-step tool chains | Bad UX, user thinks it's frozen | Medium | Stream intermediate steps ("Calling get_stats...", "Processing..."). Show emotion changes during processing. |
-| Ollama local models poor at function calling | Users with free setup can't use Bot | High | Graceful degradation: if function calling fails, fall back to keyword-based tool matching. |
+### 1.2 WebSocket 实时通信
 
-### Low Risk
+| 需求 | 可行性 | 依据 |
+|------|--------|------|
+| FastAPI WebSocket 支持 | ✅ 原生 | FastAPI 内置 WebSocket（基于 Starlette） |
+| 多用户连接池 | ✅ 简单 | Dict 管理连接，成熟方案 |
+| JWT 认证 | ✅ 标准 | Token 通过 query 参数或首条消息传递 |
+| 断线重连 | ✅ 前端 | 标准 WebSocket 重连机制 |
+| 服务端主动推送 | ✅ 原生 | WebSocket 天然双向通信 |
 
-| Risk | Impact | Probability | Mitigation |
-|------|--------|-------------|------------|
-| VRM model performance on low-end devices | Bot laggy on old phones | Low | Detect GPU capability. Fall back to 2D avatar or disable 3D. |
-| npm package size too large (Three.js) | Slow install for users | Low | Three.js as peer dependency. Lazy load VRM plugin. |
-| WebSocket blocked by corporate proxy | Bot can't connect | Low | HTTP long-polling fallback. Or use SSE for server→client. |
+**结论：** WebSocket 是最佳选择。当前 QA 用的 SSE 是单向的，Bot 需要双向通信来实现主动推送。
 
----
+### 1.3 表情引擎
 
-## 3. Cost Analysis
+| 需求 | 可行性 | 依据 |
+|------|--------|------|
+| 上下文 → 表情映射 | ✅ 简单 | 规则引擎，不需要 ML |
+| VRM 3D 表情渲染 | ✅ 已完成 | 已实现 7 种表情 + 3 种动作，BotPlugin 接口 |
+| LLM 可通过工具设置表情 | ✅ 简单 | 只是工具集里的一个工具 |
+| 平滑过渡动画 | ✅ 已完成 | VRM 插件已处理动画时序 |
 
-### Development Cost (Time)
+**结论：** 表情系统前端已完成，后端只需通过 WebSocket 发送表情名称即可。
 
-| Phase | Scope | Estimated Time | Developer |
-|-------|-------|---------------|-----------|
-| Phase 1: Core Agent | WebSocket + Tools + Brain + Emotion | 3-5 days | 1 fullstack |
-| Phase 2: Scene Awareness | Scene handler + Mode controller | 2-3 days | 1 fullstack |
-| Phase 3: Proactive Alerts | Background tasks + push | 1-2 days | 1 fullstack |
-| Phase 4: Persona + Voice | Config + Web Speech API | 2-3 days | 1 fullstack |
-| Phase 5: npm Package | Extract + publish + docs | 3-5 days | 1 fullstack |
-| **Total** | | **11-18 days** | |
+### 1.4 场景感知
 
-### Runtime Cost (Monthly)
+| 需求 | 可行性 | 依据 |
+|------|--------|------|
+| 检测页面切换 | ✅ 简单 | React Router 变化 → 发送 WebSocket 事件 |
+| 可配置的场景 → 响应 | ✅ 简单 | JSON/数据库配置，模板渲染 |
+| 场景中嵌入动态数据 | ✅ 已有 | 复用现有数据服务 API |
+| 基于优先级的模式过滤 | ✅ 简单 | 整数比较 |
 
-| Resource | Free Option | Paid Option | Notes |
-|----------|-------------|-------------|-------|
-| LLM (Bot Brain) | Ollama (local, $0) | DeepSeek ($0.14/1M tokens) | ~10K messages/month ≈ $1-5 |
-| LLM (QA System) | Same as above | Same | Already budgeted |
-| Server | Existing server | Same | No additional infra |
-| TTS/STT | Browser native ($0) | OpenAI TTS ($15/1M chars) | Optional, default free |
-| npm hosting | npmjs.com ($0) | Same | Free for public packages |
-| **Total** | **$0** | **$5-20/month** | |
+**结论：** 场景系统是纯配置 + 路由，无技术风险。
 
-### Comparison with Alternatives
+### 1.5 主动提醒
 
-| Solution | Effort | Cost | Customization | Offline |
-|----------|--------|------|--------------|---------|
-| **Our AI Bot Agent** | 2-3 weeks | $0-20/mo | Full control | ✅ Ollama |
-| Dify Bot | 0 (hosted) | $20+/mo | Limited | ❌ |
-| Botpress | 1 week | $0-50/mo | Medium | ❌ |
-| Custom from scratch (no LLM tools) | 2+ months | Same | Full | ✅ |
-| ChatGPT Plugin | 1 week | $20+/mo | Limited | ❌ |
+| 需求 | 可行性 | 依据 |
+|------|--------|------|
+| 后台定时任务 | ✅ 标准 | `asyncio.create_task` + 定时循环 |
+| 数据异常检测 | ✅ 已有 | 复用数据服务 + 时序异常检测（已实现） |
+| 推送给指定用户 | ✅ WebSocket | 连接池按 user_id 查找 |
 
-**Our approach is the best balance of cost, customization, and development time.**
+**结论：** 所有组件已存在，只需串联。
 
----
+### 1.6 npm 包独立发布
 
-## 4. Dependency Analysis
+| 需求 | 可行性 | 依据 |
+|------|--------|------|
+| React 组件抽取为包 | ✅ 标准 | Vite library 模式或 tsup 打包 |
+| BotPlugin 接口自定义 | ✅ 已完成 | 接口已定义并可用 |
+| 包内 WebSocket 客户端 | ✅ 简单 | 原生 WebSocket 的薄封装 |
+| Tree-shakeable | ✅ 打包器支持 | ESM 导出 + 正确的 package.json |
 
-### Backend Dependencies (Already Installed)
-
-| Package | Version | Purpose | Status |
-|---------|---------|---------|--------|
-| FastAPI | 0.135+ | WebSocket endpoint | ✅ Installed |
-| LiteLLM | 1.77 | Function calling to any LLM | ✅ Installed |
-| structlog | 25+ | Logging | ✅ Installed |
-| asyncpg | 0.31+ | Database | ✅ Installed |
-| redis | 7+ | Rate limiting, caching | ✅ Installed |
-
-### Frontend Dependencies (Already Installed)
-
-| Package | Version | Purpose | Status |
-|---------|---------|---------|--------|
-| React | 19 | UI framework | ✅ Installed |
-| Zustand | 5+ | State management | ✅ Installed |
-| Three.js | 0.161 | 3D rendering | ✅ Installed |
-| @pixiv/three-vrm | 3.3.3 | VRM character | ✅ Installed |
-
-### New Dependencies Needed
-
-| Package | Purpose | Size |
-|---------|---------|------|
-| None (backend) | All existing | — |
-| None (frontend) | All existing | — |
-
-**Zero new dependencies required.** Everything is built on top of existing stack.
+**结论：** 标准 npm 包工作流，无特殊挑战。
 
 ---
 
-## 5. Performance Projections
+## 二、风险评估
 
-| Metric | Target | Basis |
-|--------|--------|-------|
-| WebSocket connections per server | 1,000+ | FastAPI/Starlette handles 10K+ concurrent WS |
-| Tool call latency | < 500ms | Direct API calls to internal services |
-| LLM response (with tools) | 3-8s | DeepSeek function calling benchmarks |
-| LLM response (direct answer) | 2-5s | Same as current QA system |
-| Emotion transition | < 100ms | Frontend-only, instant |
-| Memory per connection | ~50KB | WebSocket state + user context |
-| Background alert check | < 1s | Simple DB queries |
+### 高风险
 
-### Scaling
+| 风险 | 影响 | 概率 | 缓解措施 |
+|------|------|------|---------|
+| LLM 幻觉调用错误工具 | 用户数据被误修改 | 中 | 破坏性操作（删除、改角色）需要二次确认。所有工具调用写入审计日志 |
+| LLM 无限循环调用工具 | 服务器资源耗尽 | 低 | 硬限制最多 5 次迭代。单次请求超时 30s |
+| WebSocket 内存泄漏 | 长时间运行后 OOM | 中 | 心跳检测 + 超时断开 + 每用户连接数限制 |
 
-| Users | Server | Strategy |
-|-------|--------|----------|
-| 1-100 | Single 2GB VPS | Current setup |
-| 100-1000 | Single 4GB VPS | Uvicorn workers=4 |
-| 1000-10000 | 2+ servers | Redis pub/sub for WS coordination |
-| 10000+ | Kubernetes | Horizontal pod autoscaling |
+### 中风险
 
----
+| 风险 | 影响 | 概率 | 缓解措施 |
+|------|------|------|---------|
+| DeepSeek Function Calling 质量不稳定 | 参数错误、漏调 | 中 | 复杂工具决策降级到 GPT-4o。每个工具编写单元测试 |
+| 多步工具链延迟高 | 用户体验差，以为卡住 | 中 | 流式推送中间步骤（"正在查询数据..."）。过程中切换表情 |
+| Ollama 本地模型 Function Calling 差 | 免费用户无法使用 Bot | 高 | 优雅降级：Function Calling 失败时，回退到关键词匹配工具 |
 
-## 6. Security Considerations
+### 低风险
 
-| Concern | Mitigation |
-|---------|-----------|
-| Tool calls modify data without user consent | Destructive tools (delete, role change) require explicit confirmation via "Are you sure?" response before executing |
-| User impersonation via WebSocket | JWT authentication on WebSocket connection |
-| Tool escalation (user role → admin tools) | RBAC check before each tool execution |
-| Prompt injection (user tricks Bot into calling tools) | System prompt hardened: "ONLY use tools when explicitly requested by user" |
-| Audit trail | Every tool call logged to bot_messages table with tool_name and tool_result |
-| Rate limiting | Max 20 tool calls per minute per user |
+| 风险 | 影响 | 概率 | 缓解措施 |
+|------|------|------|---------|
+| VRM 模型在低端设备卡顿 | 手机体验差 | 低 | 检测 GPU 能力，回退到 2D 头像或关闭 3D |
+| npm 包体积太大（Three.js） | 安装慢 | 低 | Three.js 作为 peerDependency，VRM 插件懒加载 |
+| 企业防火墙阻断 WebSocket | Bot 无法连接 | 低 | HTTP 长轮询回退方案 |
 
 ---
 
-## 7. Compatibility Matrix
+## 三、成本分析
 
-| Target | Compatible | Notes |
-|--------|-----------|-------|
-| Chrome 90+ | ✅ | WebSocket + Web Speech API |
-| Firefox 90+ | ✅ | WebSocket + limited Speech API |
-| Safari 15+ | ✅ | WebSocket, Speech API on macOS only |
-| Mobile Chrome | ✅ | Responsive + mobile bot size |
-| Mobile Safari | ⚠️ | WebSocket works, Speech API limited |
-| React 18+ | ✅ | npm package compatible |
-| React 19 | ✅ | Current project version |
-| Vue/Svelte | ⚠️ | Would need framework adapter (Phase 5+) |
-| Node.js backend | ⚠️ | Bot server is Python; would need JS port |
-| Python 3.11+ | ✅ | Current backend |
+### 3.1 开发成本（时间）
+
+| 阶段 | 范围 | 预估时间 | 人力 |
+|------|------|---------|------|
+| Phase 1：核心 Agent | WebSocket + 工具 + 大脑 + 表情 | 3-5 天 | 1 全栈 |
+| Phase 2：场景感知 | 场景处理器 + 模式控制 | 2-3 天 | 1 全栈 |
+| Phase 3：主动提醒 | 后台任务 + 推送 | 1-2 天 | 1 全栈 |
+| Phase 4：人设 + 语音 | 配置 + Web Speech API | 2-3 天 | 1 全栈 |
+| Phase 5：npm 包 | 抽取 + 发布 + 文档 | 3-5 天 | 1 全栈 |
+| **总计** | | **11-18 天** | |
+
+### 3.2 运行成本（月度）
+
+| 资源 | 免费方案 | 付费方案 | 说明 |
+|------|---------|---------|------|
+| LLM（Bot 大脑） | Ollama 本地（$0） | DeepSeek（$0.14/百万 token） | 月 1 万条消息 ≈ $1-5 |
+| LLM（QA 系统） | 同上 | 同上 | 已有预算 |
+| 服务器 | 现有服务器 | 同上 | 无额外基础设施 |
+| TTS/STT | 浏览器原生（$0） | OpenAI TTS（$15/百万字符） | 可选，默认免费 |
+| npm 托管 | npmjs.com（$0） | 同上 | 公开包免费 |
+| **总计** | **$0** | **$5-20/月** | |
+
+### 3.3 竞品成本对比
+
+| 方案 | 开发投入 | 月费 | 自定义程度 | 离线可用 |
+|------|---------|------|----------|---------|
+| **我们的 AI Bot Agent** | 2-3 周 | $0-20 | 完全控制 | ✅ Ollama |
+| Dify Bot | 0（托管） | $20+ | 有限 | ❌ |
+| Botpress | 1 周 | $0-50 | 中等 | ❌ |
+| 从零手写（无 LLM 工具） | 2+ 月 | 同上 | 完全控制 | ✅ |
+| ChatGPT Plugin | 1 周 | $20+ | 有限 | ❌ |
+
+**我们的方案在成本、自定义、开发时间之间取得最佳平衡。**
 
 ---
 
-## 8. Success Metrics
+## 四、依赖分析
+
+### 后端依赖（已安装）
+
+| 包 | 版本 | 用途 | 状态 |
+|---|------|------|------|
+| FastAPI | 0.135+ | WebSocket 端点 | ✅ 已安装 |
+| LiteLLM | 1.77 | Function Calling 统一接口 | ✅ 已安装 |
+| structlog | 25+ | 结构化日志 | ✅ 已安装 |
+| asyncpg | 0.31+ | 数据库 | ✅ 已安装 |
+| redis | 7+ | 限流、缓存 | ✅ 已安装 |
+
+### 前端依赖（已安装）
+
+| 包 | 版本 | 用途 | 状态 |
+|---|------|------|------|
+| React | 19 | UI 框架 | ✅ 已安装 |
+| Zustand | 5+ | 状态管理 | ✅ 已安装 |
+| Three.js | 0.161 | 3D 渲染 | ✅ 已安装 |
+| @pixiv/three-vrm | 3.3.3 | VRM 角色 | ✅ 已安装 |
+
+### 需要新增的依赖
+
+| 包 | 用途 | 大小 |
+|---|------|------|
+| 无（后端） | 全部基于现有栈 | — |
+| 无（前端） | 全部基于现有栈 | — |
+
+**零新依赖。** 完全建立在现有技术栈之上。
+
+---
+
+## 五、性能预估
+
+| 指标 | 目标值 | 依据 |
+|------|--------|------|
+| 单服务器 WebSocket 连接数 | 1,000+ | FastAPI/Starlette 支持 10K+ 并发 WS |
+| 工具调用延迟 | < 500ms | 直接调用内部 API |
+| LLM 响应（带工具） | 3-8s | DeepSeek Function Calling 基准测试 |
+| LLM 响应（直接回答） | 2-5s | 与当前 QA 系统一致 |
+| 表情切换 | < 100ms | 纯前端，即时生效 |
+| 单连接内存占用 | ~50KB | WebSocket 状态 + 用户上下文 |
+| 后台告警检查 | < 1s | 简单数据库查询 |
+
+### 扩展方案
+
+| 用户规模 | 服务器配置 | 策略 |
+|---------|----------|------|
+| 1-100 | 单台 2GB VPS | 当前配置 |
+| 100-1,000 | 单台 4GB VPS | Uvicorn workers=4 |
+| 1,000-10,000 | 2+ 台服务器 | Redis pub/sub 协调 WS 连接 |
+| 10,000+ | Kubernetes | 水平 Pod 自动扩展 |
+
+---
+
+## 六、安全考量
+
+| 风险点 | 缓解措施 |
+|--------|---------|
+| 工具调用修改数据未经用户同意 | 破坏性工具（删除、改角色）执行前返回确认提示 |
+| WebSocket 身份伪造 | JWT 认证，连接时校验 |
+| 工具权限越级（普通用户 → 管理员工具） | 每次工具调用前 RBAC 检查 |
+| Prompt 注入（用户诱导 Bot 调用工具） | System Prompt 加固："仅在用户明确请求时使用工具" |
+| 审计追踪 | 每次工具调用记录到 bot_messages 表（tool_name + tool_result） |
+| 频率限制 | 每用户每分钟最多 20 次工具调用 |
+
+---
+
+## 七、兼容性矩阵
+
+| 目标环境 | 兼容 | 说明 |
+|---------|------|------|
+| Chrome 90+ | ✅ | WebSocket + Web Speech API 完整支持 |
+| Firefox 90+ | ✅ | WebSocket 完整，Speech API 部分支持 |
+| Safari 15+ | ✅ | WebSocket 可用，Speech API 仅 macOS |
+| 手机 Chrome | ✅ | 响应式 + 移动端 Bot 尺寸适配 |
+| 手机 Safari | ⚠️ | WebSocket 可用，Speech API 受限 |
+| React 18+ | ✅ | npm 包兼容 |
+| React 19 | ✅ | 当前项目版本 |
+| Vue/Svelte | ⚠️ | 需要框架适配层（Phase 5+） |
+| Python 3.11+ | ✅ | 当前后端 |
+
+---
+
+## 八、成功指标
 
 | KPI | Phase 1 | Phase 3 | Phase 5 |
 |-----|---------|---------|---------|
-| Tool execution success rate | > 90% | > 95% | > 95% |
-| Average response time | < 8s | < 5s | < 5s |
-| Emotion accuracy | > 80% | > 90% | > 95% |
-| WebSocket uptime | > 99% | > 99.5% | > 99.9% |
-| User satisfaction (if tracked) | — | > 4/5 | > 4.5/5 |
-| npm weekly downloads | — | — | > 100 |
-| GitHub stars | — | — | > 50 |
+| 工具执行成功率 | > 90% | > 95% | > 95% |
+| 平均响应时间 | < 8s | < 5s | < 5s |
+| 表情准确率 | > 80% | > 90% | > 95% |
+| WebSocket 可用率 | > 99% | > 99.5% | > 99.9% |
+| npm 周下载量 | — | — | > 100 |
+| GitHub Star | — | — | > 50 |
 
 ---
 
-## 9. Decision
+## 九、决策建议
 
-### Recommendation: **PROCEED**
+### 建议：**立项推进**
 
-**Reasons:**
-1. **Zero new dependencies** — everything built on existing stack
-2. **Incremental delivery** — each phase is independently useful
-3. **Low cost** — $0 with Ollama, $5/month with DeepSeek
-4. **High differentiation** — few open-source projects have AI Agent Bot with 3D avatar + tool calling + emotion system
-5. **Proven technology** — Function calling, WebSocket, VRM all mature
-6. **Reusable** — npm package makes it valuable beyond this project
+**理由：**
+1. **零新依赖** — 完全基于现有技术栈
+2. **增量交付** — 每个阶段独立可用
+3. **低成本** — Ollama 免费，DeepSeek $5/月
+4. **高差异化** — 极少开源项目同时具备 AI Agent + 3D 角色 + 工具调用 + 表情系统
+5. **技术成熟** — Function Calling、WebSocket、VRM 均为成熟方案
+6. **可复用** — npm 包使其价值超越本项目
 
-### What sets this apart from competitors:
+### 竞品对比总结
 
-| Feature | Us | Dify | Botpress | ChatGPT |
-|---------|-----|------|----------|---------|
-| 3D Avatar with emotions | ✅ | ❌ | ❌ | ❌ |
-| Tool calling (execute system ops) | ✅ | ✅ | ⚠️ | ✅ |
-| Scene-aware (page context) | ✅ | ❌ | ❌ | ❌ |
-| Proactive alerts | ✅ | ❌ | ⚠️ | ❌ |
-| Fully open source | ✅ | ⚠️ | ⚠️ | ❌ |
-| Any LLM (including local) | ✅ | ⚠️ | ❌ | ❌ |
-| Pluggable avatar system | ✅ | ❌ | ❌ | ❌ |
-| npm package for integration | ✅ | ❌ | ❌ | ❌ |
-| Self-hosted / air-gapped | ✅ | ❌ | ❌ | ❌ |
+| 特性 | 我们 | Dify | Botpress | ChatGPT |
+|------|------|------|----------|---------|
+| 3D 角色 + 表情系统 | ✅ | ❌ | ❌ | ❌ |
+| 工具调用（执行系统操作） | ✅ | ✅ | ⚠️ | ✅ |
+| 场景感知（页面上下文） | ✅ | ❌ | ❌ | ❌ |
+| 主动告警 | ✅ | ❌ | ⚠️ | ❌ |
+| 完全开源 | ✅ | ⚠️ | ⚠️ | ❌ |
+| 支持任意 LLM（含本地） | ✅ | ⚠️ | ❌ | ❌ |
+| 可插拔角色系统 | ✅ | ❌ | ❌ | ❌ |
+| npm 包独立接入 | ✅ | ❌ | ❌ | ❌ |
+| 私有化/离线部署 | ✅ | ❌ | ❌ | ❌ |
 
 ---
 
-*Approved. Proceed to Phase 1 implementation.*
+*批准立项，进入 Phase 1 开发。*

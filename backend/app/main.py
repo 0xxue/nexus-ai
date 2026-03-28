@@ -54,10 +54,24 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("RAG init failed, using keyword fallback", error=str(e))
 
+    # Start Bot Alert Service
+    try:
+        from app.services.bot.alert_service import alert_manager, register_builtin_checks
+        register_builtin_checks()
+        await alert_manager.start()
+        logger.info("Bot alert service started")
+    except Exception as e:
+        logger.warning("Alert service failed to start", error=str(e))
+
     yield
 
     # Shutdown
     logger.info("Shutting down...")
+    try:
+        from app.services.bot.alert_service import alert_manager
+        await alert_manager.stop()
+    except Exception:
+        pass
     if close_redis: await close_redis()
     if close_db: await close_db()
     logger.info("Shutdown complete")

@@ -92,8 +92,17 @@ export function useBotWebSocket() {
             break;
 
           case 'bot_alert':
-            if (data.content) (window as any).__botSay?.(data.content, 8000);
-            if (data.emotion) setEmotion(data.emotion as any);
+            // Alerts are more prominent: longer display, action
+            if (data.content) (window as any).__botSay?.(data.content, 10000);
+            if (data.emotion) {
+              setEmotion(data.emotion as any);
+              if (data.action) plugin?.triggerAction?.(data.action as any);
+              setTimeout(() => setEmotion('idle'), 8000);
+            }
+            // Also show as toast for critical alerts
+            if (data.priority === 'critical' || data.priority === 'high') {
+              import('../components/ui/Toast').then(m => m.toast(data.content || 'Alert', data.priority === 'critical' ? 'error' : 'info'));
+            }
             break;
 
           case 'pong':

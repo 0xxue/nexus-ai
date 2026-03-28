@@ -311,14 +311,22 @@ export function BotContainer() {
         ];
         say?.(phrases[Math.floor(Math.random() * phrases.length)], 3000);
       } else {
-        // Every 15s: random gesture
-        const gestures = [
-          () => { setE('happy'); p?.triggerAction?.('wave'); setTimeout(() => setE('idle'), 2000); },
-          () => { setE('thinking'); p?.triggerAction?.('think'); setTimeout(() => setE('idle'), 3000); },
-          () => { p?.triggerAction?.('nod'); },
+        // Every 15s: random emotion sequence (visible on crab model)
+        const emotionSequences = [
+          // Happy wiggle
+          () => { setE('happy'); setTimeout(() => setE('surprised'), 500); setTimeout(() => setE('happy'), 1000); setTimeout(() => setE('idle'), 2000); },
+          // Curious look
+          () => { setE('thinking'); say?.('Hmm... 🤔', 2000); setTimeout(() => setE('idle'), 3000); },
+          // Excited
+          () => { setE('surprised'); say?.('Oh! 🦀', 1500); setTimeout(() => setE('happy'), 800); setTimeout(() => setE('idle'), 2500); },
+          // Sleepy then alert
+          () => { setE('sad'); setTimeout(() => { setE('surprised'); say?.('I\'m awake! 😮', 2000); }, 1500); setTimeout(() => setE('idle'), 4000); },
+          // Just happy
+          () => { setE('happy'); setTimeout(() => setE('idle'), 2000); },
+          // Crab emoji
           () => { say?.('🦀', 1500); },
         ];
-        gestures[Math.floor(Math.random() * gestures.length)]();
+        emotionSequences[Math.floor(Math.random() * emotionSequences.length)]();
       }
     }, 15000);
     return () => clearInterval(interval);

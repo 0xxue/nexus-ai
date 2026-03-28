@@ -198,31 +198,42 @@ export function createVRMBot(modelUrl = '/model.vrm'): BotPlugin {
       if (!vrm?.expressionManager) return;
       const m = vrm.expressionManager;
 
-      // Reset all expressions
+      // Reset all expressions (standard + custom)
       m.setValue(VRMExpressionPresetName.Happy, 0);
       m.setValue(VRMExpressionPresetName.Angry, 0);
       m.setValue(VRMExpressionPresetName.Sad, 0);
       m.setValue(VRMExpressionPresetName.Surprised, 0);
       m.setValue(VRMExpressionPresetName.Relaxed, 0);
+      // Reset custom crab expressions (safe — no-op if not available)
+      try { m.setValue('Eye_heart', 0); } catch {}
+      try { m.setValue('Eye_kirakira', 0); } catch {}
+      try { m.setValue('Eye_guruguru', 0); } catch {}
+      try { m.setValue('Eye_hikaru_red', 0); } catch {}
+      try { m.setValue('Eye_hikaru_white', 0); } catch {}
 
       switch (emotion) {
         case 'happy':
           m.setValue(VRMExpressionPresetName.Happy, 1);
+          try { m.setValue('Eye_kirakira', 1); } catch {} // Sparkle eyes!
           break;
         case 'angry':
           m.setValue(VRMExpressionPresetName.Angry, 1);
+          try { m.setValue('Eye_hikaru_red', 1); } catch {} // Red glow
           break;
         case 'sad':
           m.setValue(VRMExpressionPresetName.Sad, 1);
           break;
         case 'thinking':
           m.setValue(VRMExpressionPresetName.Sad, 0.3);
+          try { m.setValue('Eye_guruguru', 0.5); } catch {} // Spinning eyes
           break;
         case 'talking':
           m.setValue(VRMExpressionPresetName.Happy, 0.3);
+          try { m.setValue('Eye_hikaru_white', 0.5); } catch {} // White glow
           break;
         case 'surprised':
           m.setValue(VRMExpressionPresetName.Surprised, 1);
+          try { m.setValue('Eye_heart', 1); } catch {} // Heart eyes!
           break;
         case 'idle':
         default:

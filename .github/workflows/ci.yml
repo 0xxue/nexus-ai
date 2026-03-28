@@ -57,6 +57,9 @@ jobs:
       - name: Lint (ruff)
         run: ruff check app/ --select F --ignore F401,F841 || true
 
+      - name: Unit tests
+        run: python -m pytest tests/unit/ -v --tb=short -p no:pytest_ethereum -p no:web3
+
       - name: Type check (imports)
         run: |
           python -c "

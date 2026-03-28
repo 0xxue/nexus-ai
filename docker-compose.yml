@@ -1,7 +1,9 @@
 services:
   # ═══ Frontend (React + Nginx) ═══
   web:
-    build: ./frontend-app
+    build:
+      context: .
+      dockerfile: frontend-app/Dockerfile
     ports:
       - "${WEB_PORT:-3000}:80"
     depends_on:
